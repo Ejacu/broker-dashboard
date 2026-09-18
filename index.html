@@ -6,7 +6,8 @@
     <title>台股券商分點籌碼日報</title>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", sans-serif; margin: 0; padding: 15px; background: #F3F4F6; color: #333; }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", sans-serif; margin: 0; padding: 15px; background: #F3F4F6; color: #333; overflow-x: hidden; }
         .container { max-width: 1350px; margin: 0 auto; }
         .card { background: #FFF; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
 
@@ -43,6 +44,17 @@
 
         .footer-note { font-size: 12px; color: #888; text-align: center; margin-top: 10px; }
         .loading { text-align: center; color: #888; padding: 40px; }
+
+        @media (max-width: 600px) {
+            body { padding: 8px; }
+            .card { padding: 10px; }
+            .stock-header { padding: 10px 12px; gap: 8px; }
+            .stock-header input, .stock-header select { width: 100%; }
+            #bubble_chart { height: 380px !important; }
+            #broker_chart, #price_chart { height: 300px !important; }
+            .tab-btn { font-size: 12px; padding: 8px 10px; }
+            table { font-size: 11px; }
+        }
     </style>
 </head>
 <body>
@@ -256,16 +268,17 @@
             customdata: items.map(x => [x.broker, x.buy_avg, x.sell_avg])
         });
 
+        const isMobile = window.innerWidth < 600;
         Plotly.newPlot('bubble_chart', [
             makeTrace(buyItems, '買超分點 (紅)', '#E74C3C'),
             makeTrace(sellItems, '賣超分點 (綠)', '#27AE60')
         ], {
-            title: `<b>【${currentStock}】 ${currentDate} 券商買賣日報氣泡圖</b>`,
+            title: { text: `<b>【${currentStock}】 ${currentDate}</b>`, font: { size: isMobile ? 13 : 17 } },
             xaxis: { title: '成交均價 (元)', gridcolor: '#ECECEC' },
             yaxis: { title: '買賣超張數 (張)', zeroline: true, zerolinewidth: 2, zerolinecolor: '#333', gridcolor: '#ECECEC' },
             plot_bgcolor: '#FAFAFA',
-            margin: { t: 50, b: 40, l: 60, r: 30 }
-        }, { responsive: true });
+            margin: { t: 45, b: 40, l: 55, r: 20 }
+        }, { responsive: true, displayModeBar: false });
 
         document.getElementById('bubble_chart').on('plotly_click', function (evtData) {
             if (evtData.points.length > 0) {
@@ -369,14 +382,14 @@
         const traceSell = { x: sortedIndices.map(i => d.prices[i]), y: sortedIndices.map(i => d.sell_lots[i]), name: '賣出 (張)', type: 'bar', marker: { color: '#16A34A' } };
 
         Plotly.newPlot('broker_chart', [traceBuy, traceSell], {
-            title: `<b>各價位量能分佈</b>`,
+            title: { text: `<b>各價位量能分佈</b>`, font: { size: window.innerWidth < 600 ? 12 : 14 } },
             barmode: 'group',
             xaxis: { title: '成交價格 (元)', type: 'category' },
             yaxis: { title: '張數 (張)', gridcolor: '#F0F0F0' },
             plot_bgcolor: '#FFF',
-            margin: { t: 40, b: 40, l: 50, r: 10 },
+            margin: { t: 35, b: 40, l: 50, r: 10 },
             legend: { orientation: 'h', y: 1.15 }
-        }, { responsive: true });
+        }, { responsive: true, displayModeBar: false });
 
         renderBrokerTableRows(d);
     }
@@ -430,13 +443,13 @@
         const traceSell = { y: top15.map(x => x.broker), x: top15.map(x => x.sell_lots), name: '賣出 (張)', type: 'bar', orientation: 'h', marker: { color: '#16A34A' } };
 
         Plotly.newPlot('price_chart', [traceBuy, traceSell], {
-            title: { text: `<b>${priceStr} 元 成交量前 15 大券商</b>`, font: { size: 15 }, x: 0.05, y: 0.98 },
+            title: { text: `<b>${priceStr} 元 成交量前 15 大券商</b>`, font: { size: window.innerWidth < 600 ? 12 : 15 }, x: 0.05, y: 0.98 },
             barmode: 'group',
             xaxis: { title: { text: '張數 (張)', standoff: 8 }, gridcolor: '#F0F0F0' },
             yaxis: { automargin: true, tickfont: { size: 12 } },
-            margin: { t: 65, b: 40, l: 110, r: 15 },
+            margin: { t: 55, b: 40, l: 90, r: 15 },
             legend: { orientation: 'h', y: 1.12, x: 0.05 }
-        }, { responsive: true });
+        }, { responsive: true, displayModeBar: false });
 
         let html = '';
         items.forEach(it => {
