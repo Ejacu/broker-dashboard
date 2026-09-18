@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>台股券商分點籌碼日報</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", sans-serif; margin: 0; padding: 15px; background: #F3F4F6; color: #333; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .card { background: #FFF; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+
+        .stock-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; background: #1E293B; color: #FFF; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; }
+        .stock-header select { padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; background: #FFF; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: right; }
+        th { background: #F9FAFB; padding: 8px 10px; font-weight: 600; border-bottom: 1px solid #E5E7EB; }
+        td { padding: 6px 10px; border-bottom: 1px solid #F3F4F6; }
+        td:first-child, th:first-child { text-align: left; }
+        .text-red { color: #DC2626; font-weight: 600; }
+        .text-green { color: #16A34A; font-weight: 600; }
+
+        .footer-note { font-size: 12px; color: #888; text-align: center; margin-top: 10px; }
+        .loading { text-align: center; color: #888; padding: 40px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="stock-header">
+        <span style="font-size: 16px; font-weight: bold;">📊 台股券商分點籌碼日報</span>
+        <select id="stockDropdown" onchange="loadStock(this.value)"></select>
+        <select id="dateDropdown" onchange="loadDate(this.value)"></select>
+    </div>
+
+    <div class="card">
+        <div id="bubble_chart" style="height: 500px;"></div>
+    </div>
+
+    <div class="card">
+        <div id="tableWrap"><div class="loading">請選擇股票與日期</div></div>
+    </div>
+
+    <div class="footer-note">資料來源:FinMind(僅呈現歷史彙總資料,非即時資料)</div>
+</div>
+
+<script>
+    const API_BASE = 'https://sgq.vwa.mybluehost.me/broker/'; // Bluehost 上 PHP API 的網址
+
+    let currentStock = '';
+    let currentDate = '';
+
+    async function fetchJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    }
+
+    async function init() {
+        const stocks = await fetchJson(API_BASE + 'stocks.php');
+        const dd = document.getElementById('stockDropdown');
+        dd.innerHTML = '';
+        stocks.forEach(code => {
+            const opt = document.createElement('option');
+            opt.value = code;
+            opt.textContent = code;
+            dd.appendChild(opt);
+        });
+        if (stocks.length > 0) {
+            await loadStock(stocks[0]);
+        }
+    }
+
+    async function loadStock(stockCode) {
+        currentStock = stockCode;
+        document.getElementById('stockDropdown').value = stockCode;
+
+        const dates = await fetchJson(API_BASE + `dates.php?stock=${encodeURIComponent(stockCode)}`);
+        const dd = document.getElementById('dateDropdown');
+        dd.innerHTML = '';
+        dates.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d;
+            opt.textContent = d;
+            dd.appendChild(opt);
+        });
+        if (dates.length > 0) {
+            await loadDate(dates[0]);
+        }
+    }
+
+    async function loadDate(dateStr) {
+        currentDate = dateStr;
+        document.getElementById('dateDropdown').value = dateStr;
+
+        const data = await fetchJson(API_BASE + `data.php?stock=${encodeURIComponent(currentStock)}&date=${encodeURIComponent(dateStr)}`);
+        renderBubbleChart(data.summary);
+        renderTable(data.summary);
+    }
+
+    function renderBubbleChart(summaryList) {
+        const buyItems = summaryList.filter(x => x.action === '買超');
+        const sellItems = summaryList.filter(x => x.action === '賣超');
+        const maxLots = Math.max(...summaryList.map(x => x.abs_lots), 1);
+        const sizeref = 2.0 * maxLots / (55 ** 2);
+
+        const makeTrace = (items, name, color) => ({
+            x: items.map(x => x.main_avg),
+            y: items.map(x => x.net_lots),
+            mode: 'markers',
+            name: name,
+            marker: { size: items.map(x => x.abs_lots), sizemode: 'area', sizeref: sizeref, sizemin: 6, color: color, opacity: 0.75, line: { width: 1, color: '#FFFFFF' } },
+            hovertemplate: "<b>%{customdata[0]}</b><br>買進均價: %{customdata[1]:.2f} 元<br>賣出均價: %{customdata[2]:.2f} 元<br>買賣超: %{y:,.1f} 張<br><extra></extra>",
+            customdata: items.map(x => [x.broker, x.buy_avg, x.sell_avg])
+        });
+
+        Plotly.newPlot('bubble_chart', [
+            makeTrace(buyItems, '買超分點 (紅)', '#E74C3C'),
+            makeTrace(sellItems, '賣超分點 (綠)', '#27AE60')
+        ], {
+            title: `<b>【${currentStock}】 ${currentDate} 券商買賣日報氣泡圖</b>`,
+            xaxis: { title: '成交均價 (元)', gridcolor: '#ECECEC' },
+            yaxis: { title: '買賣超張數 (張)', zeroline: true, zerolinewidth: 2, zerolinecolor: '#333', gridcolor: '#ECECEC' },
+            plot_bgcolor: '#FAFAFA',
+            margin: { t: 50, b: 40, l: 60, r: 30 }
+        }, { responsive: true });
+    }
+
+    function renderTable(summaryList) {
+        const sorted = [...summaryList].sort((a, b) => b.net_lots - a.net_lots);
+        let html = `<table><thead><tr>
+            <th>券商</th><th>買均價</th><th>賣均價</th><th>買賣超(張)</th><th>總買進(張)</th><th>總賣出(張)</th>
+        </tr></thead><tbody>`;
+        sorted.forEach(it => {
+            const cls = it.net_lots > 0 ? 'text-red' : 'text-green';
+            html += `<tr>
+                <td>${it.broker}</td>
+                <td>${it.buy_avg.toFixed(2)}</td>
+                <td>${it.sell_avg.toFixed(2)}</td>
+                <td class="${cls}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
+                <td>${it.total_buy_lots.toFixed(1)}</td>
+                <td>${it.total_sell_lots.toFixed(1)}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('tableWrap').innerHTML = html;
+    }
+
+    init().catch(err => {
+        document.getElementById('tableWrap').innerHTML = `<div class="loading">載入失敗:${err.message}</div>`;
+    });
+</script>
+</body>
+</html>
