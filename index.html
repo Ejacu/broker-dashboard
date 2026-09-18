@@ -49,7 +49,8 @@
 <div class="container">
     <div class="stock-header">
         <span style="font-size: 16px; font-weight: bold;">📊 台股券商分點籌碼日報</span>
-        <select id="stockDropdown" onchange="loadStock(this.value)"></select>
+        <input type="text" id="stockInput" list="stockList" placeholder="輸入股票代號(如 2330)" onchange="handleStockInputChange()" style="padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; width: 160px;" />
+        <datalist id="stockList"></datalist>
         <select id="dateDropdown" onchange="loadDate(this.value)"></select>
     </div>
 
@@ -153,24 +154,36 @@
         return res.json();
     }
 
+    let allStockIds = [];
+
     async function init() {
-        const stocks = await fetchJson(API_BASE + 'stocks.php');
-        const dd = document.getElementById('stockDropdown');
-        dd.innerHTML = '';
-        stocks.forEach(code => {
+        allStockIds = await fetchJson(API_BASE + 'stocks.php');
+        const dl = document.getElementById('stockList');
+        dl.innerHTML = '';
+        allStockIds.forEach(code => {
             const opt = document.createElement('option');
             opt.value = code;
-            opt.textContent = code;
-            dd.appendChild(opt);
+            dl.appendChild(opt);
         });
-        if (stocks.length > 0) {
-            await loadStock(stocks[0]);
+        if (allStockIds.length > 0) {
+            await loadStock(allStockIds[0]);
+        }
+    }
+
+    function handleStockInputChange() {
+        const val = document.getElementById('stockInput').value.trim();
+        if (!val) return;
+        if (allStockIds.includes(val)) {
+            loadStock(val);
+        } else {
+            alert(`找不到股票代號 [${val}]`);
+            document.getElementById('stockInput').value = currentStock;
         }
     }
 
     async function loadStock(stockCode) {
         currentStock = stockCode;
-        document.getElementById('stockDropdown').value = stockCode;
+        document.getElementById('stockInput').value = stockCode;
 
         const dates = await fetchJson(API_BASE + `dates.php?stock=${encodeURIComponent(stockCode)}`);
         const dd = document.getElementById('dateDropdown');
