@@ -74,6 +74,7 @@
         <div class="tab-bar">
             <button class="tab-btn active" id="tabBrokerBtn" onclick="switchTab('broker')">🔍 依分點查詢(看各價位明細)</button>
             <button class="tab-btn" id="tabPriceBtn" onclick="switchTab('price')">🎯 依成交價查詢(看各券商進出)</button>
+            <button class="tab-btn" id="tabDaytradeBtn" onclick="switchTab('daytrade')">💰 當沖贏家</button>
         </div>
 
         <!-- 模式 1:依券商查詢 -->
@@ -132,6 +133,29 @@
                 </div>
             </div>
         </div>
+
+        <!-- 模式 3:當沖贏家(依買均/賣均估算當沖損益) -->
+        <div id="sectionDaytrade" style="display: none;">
+            <div class="summary-stats" style="margin-bottom: 8px;">
+                <span style="font-size: 12px; color: #888;">估算方式:當沖張數取買賣張數較小值;毛利=(賣均-買均)×當沖張數×1000;成本≈(賣均+買均)×0.3%×當沖張數×1000;淨損益=毛利-成本(僅供參考,非精確手續費/證交稅計算)</span>
+            </div>
+            <div class="table-wrap" style="max-height: 550px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortDaytradeTable('broker')">券商 ⇕</th>
+                            <th onclick="sortDaytradeTable('buy_avg')">買均價 ⇕</th>
+                            <th onclick="sortDaytradeTable('sell_avg')">賣均價 ⇕</th>
+                            <th onclick="sortDaytradeTable('matched_lots')">當沖張數 ⇕</th>
+                            <th onclick="sortDaytradeTable('gross_profit')">毛利(元) ⇕</th>
+                            <th onclick="sortDaytradeTable('cost')">估算成本(元) ⇕</th>
+                            <th id="th-daytrade-net" class="sort-active" onclick="sortDaytradeTable('net_profit')">淨損益(元) ▼</th>
+                        </tr>
+                    </thead>
+                    <tbody id="daytradeTableBody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div class="card">
@@ -159,6 +183,10 @@
     let priceSortDesc = true;
     let brokerSortCol = 'price';
     let brokerSortDesc = true;
+
+    let daytradeData = [];
+    let daytradeSortCol = 'net_profit';
+    let daytradeSortDesc = true;
 
     async function fetchJson(url) {
         const res = await fetch(url);
@@ -248,7 +276,12 @@
         currentBroker = allBrokers[0] || '';
         currentPrice = allPrices[0] || '';
 
+        daytradeData = data.daytrade || [];
+        daytradeSortCol = 'net_profit';
+        daytradeSortDesc = true;
+
         if (currentTab === 'price') renderPrice(currentPrice);
+        else if (currentTab === 'daytrade') renderDaytrade();
         else renderBroker(currentBroker);
     }
 
@@ -313,9 +346,12 @@
         currentTab = tab;
         document.getElementById('sectionBroker').style.display = tab === 'broker' ? 'block' : 'none';
         document.getElementById('sectionPrice').style.display = tab === 'price' ? 'block' : 'none';
+        document.getElementById('sectionDaytrade').style.display = tab === 'daytrade' ? 'block' : 'none';
         document.getElementById('tabBrokerBtn').className = 'tab-btn ' + (tab === 'broker' ? 'active' : '');
         document.getElementById('tabPriceBtn').className = 'tab-btn ' + (tab === 'price' ? 'active' : '');
+        document.getElementById('tabDaytradeBtn').className = 'tab-btn ' + (tab === 'daytrade' ? 'active' : '');
         if (tab === 'price') renderPrice(currentPrice);
+        else if (tab === 'daytrade') renderDaytrade();
         else renderBroker(currentBroker);
     }
 
@@ -482,6 +518,49 @@
             }
         });
         renderPrice(currentPrice);
+    }
+
+    function renderDaytrade() {
+        const items = [...daytradeData].sort((a, b) => {
+            let vA = a[daytradeSortCol], vB = b[daytradeSortCol];
+            if (typeof vA === 'string') return daytradeSortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
+            return daytradeSortDesc ? (vB - vA) : (vA - vB);
+        });
+
+        let html = '';
+        items.forEach(it => {
+            const cls = it.net_profit > 0 ? 'text-red' : (it.net_profit < 0 ? 'text-green' : '');
+            html += `<tr>
+                <td>${it.broker}</td>
+                <td>${it.buy_avg.toFixed(2)}</td>
+                <td>${it.sell_avg.toFixed(2)}</td>
+                <td>${it.matched_lots.toFixed(1)}</td>
+                <td>${it.gross_profit.toLocaleString()}</td>
+                <td>${it.cost.toLocaleString()}</td>
+                <td class="${cls}">${it.net_profit > 0 ? '+' : ''}${it.net_profit.toLocaleString()}</td>
+            </tr>`;
+        });
+        document.getElementById('daytradeTableBody').innerHTML = html || '<tr><td colspan="7" style="text-align:center; color:#888;">這天沒有偵測到當沖部位</td></tr>';
+    }
+
+    function sortDaytradeTable(col) {
+        if (daytradeSortCol === col) daytradeSortDesc = !daytradeSortDesc;
+        else { daytradeSortCol = col; daytradeSortDesc = true; }
+
+        const headerMap = {
+            broker: null, buy_avg: null, sell_avg: null, matched_lots: null,
+            gross_profit: null, cost: null, net_profit: 'th-daytrade-net',
+        };
+        const el = document.getElementById(headerMap[col]);
+        document.querySelectorAll('#sectionDaytrade th').forEach(th => {
+            th.className = '';
+            th.innerText = th.innerText.replace(/[▲▼⇕]/g, '') + ' ⇕';
+        });
+        if (el) {
+            el.className = 'sort-active';
+            el.innerText = el.innerText.replace(/[▲▼⇕]/g, '') + (daytradeSortDesc ? ' ▼' : ' ▲');
+        }
+        renderDaytrade();
     }
 
     init().catch(err => {
