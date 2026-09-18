@@ -1,0 +1,24 @@
+name: Daily Broker Update
+
+on:
+  schedule:
+    - cron: "0 10 * * 1-5"  # UTC 10:00 = 台灣時間 18:00,平日收盤後
+  workflow_dispatch: {}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install FinMind requests
+
+      - run: python daily_update.py
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
+          UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
