@@ -4,13 +4,17 @@
 import os
 import sys
 import time
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 from FinMind.data import DataLoader
 
 # 沒有另外設定 STOCK_IDS 環境變數時的預設值(僅供本機測試用)
 FALLBACK_STOCK_IDS = ["2330", "2317", "2454"]
+
+# 每次執行都檢查最近幾天有沒有缺口並補上,而不是只看「今天」——
+# 這樣排程偶爾失敗個幾天,下次成功執行時會自動追上,不需要人工介入
+LOOKBACK_DAYS = 10
 
 # Bluehost 的防護機制會擋掉 requests 預設的 User-Agent(python-requests/x.x),
 # 偽裝成一般瀏覽器才不會被 WAF 判定成機器人擋掉(406 Not Acceptable)
@@ -45,6 +49,16 @@ def get_current_stock_ids(stocks_url: str) -> list:
     resp = request_with_retry("GET", stocks_url, timeout=30)
     stock_ids = resp.json()
     return stock_ids if stock_ids else FALLBACK_STOCK_IDS
+
+
+def get_existing_dates(dates_url: str, stock_id: str) -> set:
+    resp = request_with_retry("GET", dates_url, params={"stock": stock_id}, timeout=30)
+    return set(resp.json())
+
+
+def recent_dates(lookback_days: int) -> list:
+    today = date.today()
+    return [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(lookback_days)]
 
 
 def summarize(df, stock_id: str, trade_date: str) -> list:
@@ -96,40 +110,54 @@ def summarize_price_detail(df, stock_id: str, trade_date: str) -> list:
     return records
 
 
+def update_one(upload_url: str, upload_token: str, api: DataLoader, stock_id: str, trade_date: str) -> None:
+    df = api.taiwan_stock_trading_daily_report(stock_id=stock_id, date=trade_date)
+    if df.empty:
+        print(f"{stock_id} {trade_date} 無資料(可能非交易日),略過")
+        return
+
+    records = summarize(df, stock_id, trade_date)
+    detail_records = summarize_price_detail(df, stock_id, trade_date)
+
+    if not records and not detail_records:
+        print(f"{stock_id} {trade_date}: 淨部位皆為 0,沒東西可存,略過")
+        return
+
+    resp = request_with_retry(
+        "POST",
+        upload_url,
+        json={"token": upload_token, "records": records, "detail_records": detail_records},
+        timeout=60,
+    )
+    print(f"{stock_id} {trade_date}: 彙總 {len(records)} 筆、明細 {len(detail_records)} 筆 -> {resp.status_code}")
+
+
 def main():
     token = os.environ["FINMIND_TOKEN"]
     upload_url = os.environ["UPLOAD_URL"]
     upload_token = os.environ["UPLOAD_TOKEN"]
     stocks_url = os.environ.get("STOCKS_URL", upload_url.replace("upload.php", "stocks.php"))
-    trade_date = os.environ.get("TRADE_DATE", date.today().strftime("%Y-%m-%d"))
+    dates_url = os.environ.get("DATES_URL", upload_url.replace("upload.php", "dates.php"))
+    override_date = os.environ.get("TRADE_DATE")
 
     api = DataLoader()
     api.login_by_token(api_token=token)
 
     stock_ids = get_current_stock_ids(stocks_url)
-    print(f"依資料庫既有清單,今天要更新 {len(stock_ids)} 檔股票")
+    print(f"依資料庫既有清單,共 {len(stock_ids)} 檔股票")
 
     # 每檔股票各自送一次請求,避免單一請求塞進上萬筆明細導致 PHP 執行逾時
     for stock_id in stock_ids:
-        df = api.taiwan_stock_trading_daily_report(stock_id=stock_id, date=trade_date)
-        if df.empty:
-            print(f"{stock_id} {trade_date} 無資料(可能非交易日),略過")
-            continue
+        if override_date:
+            # 手動指定日期時(除錯/補特定一天用),不做缺口檢查,就只抓這一天
+            target_dates = [override_date]
+        else:
+            # 正常排程:檢查最近 LOOKBACK_DAYS 天裡,資料庫還缺哪幾天,自動補上
+            existing = get_existing_dates(dates_url, stock_id)
+            target_dates = [d for d in recent_dates(LOOKBACK_DAYS) if d not in existing]
 
-        records = summarize(df, stock_id, trade_date)
-        detail_records = summarize_price_detail(df, stock_id, trade_date)
-
-        if not records and not detail_records:
-            print(f"{stock_id} {trade_date}: 淨部位皆為 0,沒東西可存,略過")
-            continue
-
-        resp = request_with_retry(
-            "POST",
-            upload_url,
-            json={"token": upload_token, "records": records, "detail_records": detail_records},
-            timeout=60,
-        )
-        print(f"{stock_id} {trade_date}: 彙總 {len(records)} 筆、明細 {len(detail_records)} 筆 -> {resp.status_code}")
+        for trade_date in target_dates:
+            update_one(upload_url, upload_token, api, stock_id, trade_date)
 
 
 if __name__ == "__main__":
