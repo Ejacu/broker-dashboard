@@ -8,7 +8,8 @@ from datetime import date
 import requests
 from FinMind.data import DataLoader
 
-TEST_STOCK_IDS = ["2330", "2317", "2454"]
+# 沒有另外設定 STOCK_IDS 環境變數時的預設值(僅供本機測試用)
+FALLBACK_STOCK_IDS = ["2330", "2317", "2454"]
 
 # Bluehost 的防護機制會擋掉 requests 預設的 User-Agent(python-requests/x.x),
 # 偽裝成一般瀏覽器才不會被 WAF 判定成機器人擋掉(406 Not Acceptable)
@@ -16,6 +17,14 @@ UPLOAD_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json",
 }
+
+
+def get_current_stock_ids(stocks_url: str) -> list:
+    """跟資料庫既有的股票清單同步,避免每天只更新固定幾檔,新加的股票也要繼續追蹤"""
+    resp = requests.get(stocks_url, headers=UPLOAD_HEADERS, timeout=30)
+    resp.raise_for_status()
+    stock_ids = resp.json()
+    return stock_ids if stock_ids else FALLBACK_STOCK_IDS
 
 
 def summarize(df, stock_id: str, trade_date: str) -> list:
@@ -47,37 +56,57 @@ def summarize(df, stock_id: str, trade_date: str) -> list:
     return records
 
 
+def summarize_price_detail(df, stock_id: str, trade_date: str) -> list:
+    """各券商在各價位的買賣張數明細(氣泡圖點進去看價位分布用)"""
+    records = []
+    grouped = df.groupby(["securities_trader", "price"])[["buy", "sell"]].sum().reset_index()
+    for _, row in grouped.iterrows():
+        buy_lots = row["buy"] / 1000.0
+        sell_lots = row["sell"] / 1000.0
+        if buy_lots == 0 and sell_lots == 0:
+            continue
+        records.append({
+            "stock_id": stock_id,
+            "date": trade_date,
+            "broker": row["securities_trader"],
+            "price": round(float(row["price"]), 2),
+            "buy_lots": round(buy_lots, 1),
+            "sell_lots": round(sell_lots, 1),
+        })
+    return records
+
+
 def main():
     token = os.environ["FINMIND_TOKEN"]
     upload_url = os.environ["UPLOAD_URL"]
     upload_token = os.environ["UPLOAD_TOKEN"]
+    stocks_url = os.environ.get("STOCKS_URL", upload_url.replace("upload.php", "stocks.php"))
     trade_date = os.environ.get("TRADE_DATE", date.today().strftime("%Y-%m-%d"))
 
     api = DataLoader()
     api.login_by_token(api_token=token)
 
-    all_records = []
-    for stock_id in TEST_STOCK_IDS:
+    stock_ids = get_current_stock_ids(stocks_url)
+    print(f"依資料庫既有清單,今天要更新 {len(stock_ids)} 檔股票")
+
+    # 每檔股票各自送一次請求,避免單一請求塞進上萬筆明細導致 PHP 執行逾時
+    for stock_id in stock_ids:
         df = api.taiwan_stock_trading_daily_report(stock_id=stock_id, date=trade_date)
         if df.empty:
             print(f"{stock_id} {trade_date} 無資料(可能非交易日),略過")
             continue
+
         records = summarize(df, stock_id, trade_date)
-        all_records.extend(records)
-        print(f"{stock_id} {trade_date}: {len(records)} 筆券商彙總")
+        detail_records = summarize_price_detail(df, stock_id, trade_date)
 
-    if not all_records:
-        print("今天沒有任何資料需要上傳,結束")
-        return
-
-    resp = requests.post(
-        upload_url,
-        json={"token": upload_token, "records": all_records},
-        headers=UPLOAD_HEADERS,
-        timeout=30,
-    )
-    print(f"上傳結果: {resp.status_code} {resp.text}")
-    resp.raise_for_status()
+        resp = requests.post(
+            upload_url,
+            json={"token": upload_token, "records": records, "detail_records": detail_records},
+            headers=UPLOAD_HEADERS,
+            timeout=60,
+        )
+        resp.raise_for_status()
+        print(f"{stock_id} {trade_date}: 彙總 {len(records)} 筆、明細 {len(detail_records)} 筆 -> {resp.status_code}")
 
 
 if __name__ == "__main__":
