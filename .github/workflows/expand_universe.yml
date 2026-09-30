@@ -1,0 +1,26 @@
+name: Expand Universe
+
+on:
+  schedule:
+    - cron: "0 14 */3 * *"  # UTC 14:00 = 台灣時間 22:00,每 3 天跑一次
+  workflow_dispatch: {}
+
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install FinMind requests
+
+      - name: 新增一批股票,逐步涵蓋全市場
+        run: python expand_universe.py
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
+          UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
