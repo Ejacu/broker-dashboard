@@ -3,6 +3,7 @@
 """
 import os
 import sys
+import time
 from datetime import date
 
 import requests
@@ -18,11 +19,30 @@ UPLOAD_HEADERS = {
     "Accept": "application/json",
 }
 
+HTTP_MAX_RETRY = 5
+HTTP_RETRY_BACKOFF = 10  # 秒,每次重試遞增(10, 20, 30...)
+
+
+def request_with_retry(method: str, url: str, max_retry: int = HTTP_MAX_RETRY, **kwargs) -> requests.Response:
+    """GitHub Actions 的雲端 IP 偶爾會被 Bluehost 的防護機制擋下(403/409 等),
+    多數情況下重試幾次就能通過,不是真的永久封鎖。"""
+    last_exc = None
+    for attempt in range(1, max_retry + 1):
+        try:
+            resp = requests.request(method, url, headers=UPLOAD_HEADERS, **kwargs)
+            resp.raise_for_status()
+            return resp
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+            wait = HTTP_RETRY_BACKOFF * attempt
+            print(f"    [HTTP 重試 {attempt}/{max_retry}] {method} {url} 失敗: {exc} -> 等待 {wait}s")
+            time.sleep(wait)
+    raise last_exc
+
 
 def get_current_stock_ids(stocks_url: str) -> list:
     """跟資料庫既有的股票清單同步,避免每天只更新固定幾檔,新加的股票也要繼續追蹤"""
-    resp = requests.get(stocks_url, headers=UPLOAD_HEADERS, timeout=30)
-    resp.raise_for_status()
+    resp = request_with_retry("GET", stocks_url, timeout=30)
     stock_ids = resp.json()
     return stock_ids if stock_ids else FALLBACK_STOCK_IDS
 
@@ -99,13 +119,12 @@ def main():
         records = summarize(df, stock_id, trade_date)
         detail_records = summarize_price_detail(df, stock_id, trade_date)
 
-        resp = requests.post(
+        resp = request_with_retry(
+            "POST",
             upload_url,
             json={"token": upload_token, "records": records, "detail_records": detail_records},
-            headers=UPLOAD_HEADERS,
             timeout=60,
         )
-        resp.raise_for_status()
         print(f"{stock_id} {trade_date}: 彙總 {len(records)} 筆、明細 {len(detail_records)} 筆 -> {resp.status_code}")
 
 
