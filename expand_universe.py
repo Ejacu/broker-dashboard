@@ -22,8 +22,11 @@ SLEEP_SECONDS = 0.7  # 每次 FinMind 請求間隔,對齊 broker_pro.py 的節�
 MAX_RETRY = 5
 RATE_LIMIT_BACKOFF = 60
 
-# 這些類別通常沒有券商分點資料(ETF、大盤指數等),先跳過避免浪費額度
-EXCLUDE_INDUSTRY_CATEGORY = {"ETF", "所有證券", "Index", "大盤"}
+# 這些類別通常沒有券商分點資料(大盤指數等),先跳過避免浪費額度
+EXCLUDE_INDUSTRY_CATEGORY = {"所有證券", "Index", "大盤"}
+# ETF 的 industry_category 是「上市指數股票型基金(ETF)」這種帶中文前綴的完整字串,
+# 用完全比對抓不到,要用「字串包含」比對
+EXCLUDE_INDUSTRY_KEYWORDS = ["ETF"]
 
 
 def daterange(start: date, end: date):
@@ -37,6 +40,8 @@ def get_full_market_stock_ids(api: DataLoader) -> list:
     info = api.taiwan_stock_info()
     info = info[info["type"].isin(["twse", "tpex"])]
     info = info[~info["industry_category"].isin(EXCLUDE_INDUSTRY_CATEGORY)]
+    for keyword in EXCLUDE_INDUSTRY_KEYWORDS:
+        info = info[~info["industry_category"].str.contains(keyword, na=False)]
     return sorted(info["stock_id"].unique().tolist())
 
 
@@ -100,6 +105,11 @@ def main():
             records = summarize(df, stock_id, d_str)
             d_date = datetime.strptime(d_str, "%Y-%m-%d").date()
             detail_records = summarize_price_detail(df, stock_id, d_str) if d_date >= detail_start else []
+
+            if not records and not detail_records:
+                # 當天所有券商淨部位剛好都是 0(常見於冷門 ETF/債券型商品),
+                # 沒東西可存,直接跳過,不要對著空結果重試
+                continue
 
             try:
                 request_with_retry(
