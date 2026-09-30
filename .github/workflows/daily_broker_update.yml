@@ -2,12 +2,13 @@ name: Daily Broker Update
 
 on:
   schedule:
-    - cron: "0 10 * * 1-5"  # UTC 10:00 = 台灣時間 18:00,平日收盤後
+    - cron: "30 13 * * 1-5"  # UTC 13:30 = 台灣時間 21:30,確保券商分點資料已經更新完成
   workflow_dispatch: {}
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -17,7 +18,15 @@ jobs:
 
       - run: pip install FinMind requests
 
-      - run: python daily_update.py
+      - name: 更新現有股票的最新一天資料
+        run: python daily_update.py
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
+          UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
+
+      - name: 每日新增一批股票,逐步涵蓋全市場
+        run: python expand_universe.py
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
           UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
