@@ -119,6 +119,10 @@ def main():
         records = summarize(df, stock_id, trade_date)
         detail_records = summarize_price_detail(df, stock_id, trade_date)
 
+        if not records and not detail_records:
+            print(f"{stock_id} {trade_date}: 淨部位皆為 0,沒東西可存,略過")
+            continue
+
         resp = request_with_retry(
             "POST",
             upload_url,
