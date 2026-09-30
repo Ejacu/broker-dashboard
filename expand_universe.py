@@ -11,10 +11,9 @@ import os
 import time
 from datetime import date, datetime, timedelta
 
-import requests
 from FinMind.data import DataLoader
 
-from daily_update import summarize, summarize_price_detail, UPLOAD_HEADERS
+from daily_update import summarize, summarize_price_detail, request_with_retry
 
 BATCH_SIZE = 50
 HISTORY_DAYS = 370   # 新股票要往前補多少天的彙總資料(略多於一年,涵蓋所有交易日)
@@ -42,8 +41,7 @@ def get_full_market_stock_ids(api: DataLoader) -> list:
 
 
 def get_tracked_stock_ids(stocks_url: str) -> set:
-    resp = requests.get(stocks_url, headers=UPLOAD_HEADERS, timeout=30)
-    resp.raise_for_status()
+    resp = request_with_retry("GET", stocks_url, timeout=30)
     return set(resp.json())
 
 
@@ -104,13 +102,12 @@ def main():
             detail_records = summarize_price_detail(df, stock_id, d_str) if d_date >= detail_start else []
 
             try:
-                resp = requests.post(
+                request_with_retry(
+                    "POST",
                     upload_url,
                     json={"token": upload_token, "records": records, "detail_records": detail_records},
-                    headers=UPLOAD_HEADERS,
                     timeout=60,
                 )
-                resp.raise_for_status()
                 ok_days += 1
             except Exception as exc:
                 print(f"    [上傳失敗] {stock_id} {d_str}: {exc}")
