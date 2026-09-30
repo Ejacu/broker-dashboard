@@ -8,7 +8,7 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -20,13 +20,6 @@ jobs:
 
       - name: 更新現有股票的最新一天資料
         run: python daily_update.py
-        env:
-          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
-          UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
-          UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
-
-      - name: 每日新增一批股票,逐步涵蓋全市場
-        run: python expand_universe.py
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
           UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
