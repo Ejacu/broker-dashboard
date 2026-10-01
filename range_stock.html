@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>單一股票區間查詢</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", sans-serif; margin: 0; padding: 15px; background: #F3F4F6; color: #333; overflow-x: hidden; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .card { background: #FFF; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+
+        .page-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; background: #1E293B; color: #FFF; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; }
+        .page-header a { color: #93C5FD; text-decoration: none; font-weight: bold; font-size: 14px; }
+        .page-header a:hover { text-decoration: underline; }
+
+        .search-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        .search-bar input { padding: 7px 12px; font-size: 14px; border: 1px solid #CCC; border-radius: 6px; outline: none; }
+        .search-bar button { padding: 8px 20px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; background: #2563EB; color: #FFF; cursor: pointer; }
+        .search-bar button:hover { background: #1D4ED8; }
+
+        .summary-stats { display: flex; gap: 18px; margin-top: 10px; font-size: 14px; font-weight: 500; align-items: center; flex-wrap: wrap; }
+
+        .table-wrap { max-height: 500px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: right; }
+        th { background: #F9FAFB; padding: 8px 10px; font-weight: 600; border-bottom: 1px solid #E5E7EB; position: sticky; top: 0; cursor: pointer; user-select: none; }
+        th:hover { background: #EDF2F7; }
+        th.sort-active { color: #2563EB; background: #E0E7FF; }
+        td { padding: 6px 10px; border-bottom: 1px solid #F3F4F6; }
+        td:first-child, th:first-child { text-align: left; }
+        tr.clickable { cursor: pointer; }
+        tr.clickable:hover { background-color: #F8FAFC; }
+        tr.row-active { background-color: #E0E7FF; }
+        .text-red { color: #DC2626; font-weight: 600; }
+        .text-green { color: #16A34A; font-weight: 600; }
+
+        .detail-panel { margin-top: 15px; border-top: 2px dashed #E5E7EB; padding-top: 15px; }
+        .detail-title { font-size: 15px; font-weight: bold; margin-bottom: 10px; }
+
+        .footer-note { font-size: 12px; color: #888; text-align: center; margin-top: 10px; }
+        .loading { text-align: center; color: #888; padding: 30px; }
+
+        @media (max-width: 600px) {
+            body { padding: 8px; }
+            .card { padding: 10px; }
+            .page-header { padding: 10px 12px; gap: 8px; }
+            .search-bar input { width: 100%; }
+            table { font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="page-header">
+        <span style="font-size: 16px; font-weight: bold;">📅 單一股票區間查詢</span>
+        <a href="index.html">← 回主頁</a>
+    </div>
+
+    <div class="card">
+        <div class="search-bar">
+            <input type="text" id="stockInput" list="stockList" placeholder="輸入股票代號(如 2330)" style="width: 160px;" />
+            <datalist id="stockList"></datalist>
+            <span>起:</span>
+            <input type="date" id="startDate" />
+            <span>迄:</span>
+            <input type="date" id="endDate" />
+            <button onclick="loadRange()">查詢</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div id="rangeStats" class="summary-stats"></div>
+        <div class="table-wrap" style="margin-top: 10px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('broker')">券商 ⇕</th>
+                        <th onclick="sortTable('buy_avg')">買均價 ⇕</th>
+                        <th onclick="sortTable('sell_avg')">賣均價 ⇕</th>
+                        <th onclick="sortTable('total_buy_lots')">總買進(張) ⇕</th>
+                        <th onclick="sortTable('total_sell_lots')">總賣出(張) ⇕</th>
+                        <th id="th-net" class="sort-active" onclick="sortTable('net_lots')">淨買賣超(張) ▼</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"><tr><td colspan="6" style="text-align:center; color:#888;">請輸入股票代號與日期區間後按查詢</td></tr></tbody>
+            </table>
+        </div>
+
+        <div id="detailPanel" class="detail-panel" style="display:none;">
+            <div class="detail-title" id="detailTitle"></div>
+            <div class="table-wrap" style="max-height: 350px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>買均價</th>
+                            <th>賣均價</th>
+                            <th>買進(張)</th>
+                            <th>賣出(張)</th>
+                            <th>淨買賣超(張)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-note">資料來源:FinMind(僅呈現歷史彙總資料,非即時資料)</div>
+</div>
+
+<script>
+    const API_BASE = 'https://sgq.vwa.mybluehost.me/broker/';
+
+    let rangeData = [];
+    let sortCol = 'net_lots';
+    let sortDesc = true;
+    let currentStock = '';
+    let currentStart = '';
+    let currentEnd = '';
+    let activeBroker = '';
+
+    async function fetchJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    }
+
+    async function init() {
+        const allStockIds = await fetchJson(API_BASE + 'stocks.php');
+        const dl = document.getElementById('stockList');
+        dl.innerHTML = '';
+        allStockIds.forEach(code => {
+            const opt = document.createElement('option');
+            opt.value = code;
+            dl.appendChild(opt);
+        });
+
+        const today = new Date();
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        document.getElementById('endDate').value = today.toISOString().slice(0, 10);
+        document.getElementById('startDate').value = weekAgo.toISOString().slice(0, 10);
+    }
+
+    async function loadRange() {
+        const stock = document.getElementById('stockInput').value.trim();
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if (!stock || !start || !end) {
+            alert('請輸入股票代號與日期區間');
+            return;
+        }
+        currentStock = stock;
+        currentStart = start;
+        currentEnd = end;
+        document.getElementById('detailPanel').style.display = 'none';
+        document.getElementById('tableBody').innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">查詢中...</td></tr>';
+
+        const data = await fetchJson(API_BASE + `range_stock_summary.php?stock=${encodeURIComponent(stock)}&start=${start}&end=${end}`);
+        rangeData = data.rows || [];
+
+        if (rangeData.length === 0) {
+            document.getElementById('rangeStats').innerHTML = `<span>查無資料:<b>${stock}</b> 在 <b>${start} ~ ${end}</b> 這段期間沒有交易紀錄</span>`;
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">查無資料</td></tr>';
+            return;
+        }
+
+        const totalBuy = rangeData.reduce((s, r) => s + r.total_buy_lots, 0);
+        const totalSell = rangeData.reduce((s, r) => s + r.total_sell_lots, 0);
+        document.getElementById('rangeStats').innerHTML = `
+            <span>股票:<b>${stock}</b></span>
+            <span>區間:<b>${start} ~ ${end}</b></span>
+            <span>涉及券商數:<b>${rangeData.length}</b> 家</span>
+            <span>總買進:<span class="text-red">${totalBuy.toFixed(1)} 張</span></span>
+            <span>總賣出:<span class="text-green">${totalSell.toFixed(1)} 張</span></span>
+        `;
+        renderTable();
+    }
+
+    function renderTable() {
+        const items = [...rangeData].sort((a, b) => {
+            let vA = a[sortCol], vB = b[sortCol];
+            if (typeof vA === 'string') return sortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
+            return sortDesc ? (vB - vA) : (vA - vB);
+        });
+
+        let html = '';
+        items.forEach(it => {
+            const cls = it.net_lots > 0 ? 'text-red' : (it.net_lots < 0 ? 'text-green' : '');
+            const activeCls = it.broker === activeBroker ? ' row-active' : '';
+            html += `<tr class="clickable${activeCls}" onclick="showDetail('${it.broker.replace(/'/g, "\\'")}')">
+                <td>${it.broker}</td>
+                <td>${it.buy_avg.toFixed(2)}</td>
+                <td>${it.sell_avg.toFixed(2)}</td>
+                <td class="text-red">${it.total_buy_lots.toFixed(1)}</td>
+                <td class="text-green">${it.total_sell_lots.toFixed(1)}</td>
+                <td class="${cls}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
+            </tr>`;
+        });
+        document.getElementById('tableBody').innerHTML = html;
+    }
+
+    function sortTable(col) {
+        if (sortCol === col) sortDesc = !sortDesc;
+        else { sortCol = col; sortDesc = true; }
+
+        document.querySelectorAll('#tableBody').forEach(() => {});
+        document.querySelectorAll('thead th').forEach(th => {
+            th.className = '';
+            th.innerText = th.innerText.replace(/[▲▼⇕]/g, '') + ' ⇕';
+        });
+        const headerMap = { broker: 0, buy_avg: 1, sell_avg: 2, total_buy_lots: 3, total_sell_lots: 4, net_lots: 5 };
+        const ths = document.querySelectorAll('thead th');
+        const el = ths[headerMap[col]];
+        if (el) {
+            el.className = 'sort-active';
+            el.innerText = el.innerText.replace(/[▲▼⇕]/g, '') + (sortDesc ? ' ▼' : ' ▲');
+        }
+        renderTable();
+    }
+
+    async function showDetail(broker) {
+        activeBroker = broker;
+        renderTable();
+        document.getElementById('detailPanel').style.display = 'block';
+        document.getElementById('detailTitle').innerText = `${broker} — ${currentStock} 逐日明細(${currentStart} ~ ${currentEnd})`;
+        document.getElementById('detailTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">查詢中...</td></tr>';
+
+        const data = await fetchJson(API_BASE + `range_detail.php?stock=${encodeURIComponent(currentStock)}&broker=${encodeURIComponent(broker)}&start=${currentStart}&end=${currentEnd}`);
+        const rows = data.rows || [];
+        let html = '';
+        rows.forEach(r => {
+            const cls = r.net_lots > 0 ? 'text-red' : (r.net_lots < 0 ? 'text-green' : '');
+            html += `<tr>
+                <td style="text-align:left;">${r.trade_date}</td>
+                <td>${r.buy_avg.toFixed(2)}</td>
+                <td>${r.sell_avg.toFixed(2)}</td>
+                <td class="text-red">${r.total_buy_lots.toFixed(1)}</td>
+                <td class="text-green">${r.total_sell_lots.toFixed(1)}</td>
+                <td class="${cls}">${r.net_lots > 0 ? '+' : ''}${r.net_lots.toFixed(1)}</td>
+            </tr>`;
+        });
+        document.getElementById('detailTableBody').innerHTML = html || '<tr><td colspan="6" style="text-align:center; color:#888;">這段期間沒有交易紀錄</td></tr>';
+        document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    init().catch(err => {
+        document.getElementById('tableBody').innerHTML = `<tr><td colspan="6" style="text-align:center; color:#888;">載入失敗:${err.message}</td></tr>`;
+    });
+</script>
+</body>
+</html>
