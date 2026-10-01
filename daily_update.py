@@ -23,8 +23,8 @@ UPLOAD_HEADERS = {
     "Accept": "application/json",
 }
 
-HTTP_MAX_RETRY = 5
-HTTP_RETRY_BACKOFF = 10  # 秒,每次重試遞增(10, 20, 30...)
+HTTP_MAX_RETRY = 8
+HTTP_RETRY_BACKOFF = 20  # 秒,每次重試遞增(20, 40, 60...),拉長是因為 Bluehost 擋 GitHub IP 有時會持續好幾分鐘
 
 
 def request_with_retry(method: str, url: str, max_retry: int = HTTP_MAX_RETRY, **kwargs) -> requests.Response:
@@ -57,8 +57,10 @@ def get_existing_dates(dates_url: str, stock_id: str) -> set:
 
 
 def recent_dates(lookback_days: int) -> list:
+    """最近 N 天,排除週末——週末永遠不會有交易資料,不用每次都白問一次"""
     today = date.today()
-    return [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(lookback_days)]
+    days = [today - timedelta(days=i) for i in range(lookback_days)]
+    return [d.strftime("%Y-%m-%d") for d in days if d.weekday() < 5]
 
 
 def summarize(df, stock_id: str, trade_date: str) -> list:
