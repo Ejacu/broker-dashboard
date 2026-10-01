@@ -61,11 +61,22 @@
 <div class="container">
     <div class="stock-header">
         <span style="font-size: 16px; font-weight: bold;">📊 台股券商分點籌碼日報</span>
-        <input type="text" id="stockInput" list="stockList" placeholder="輸入股票代號(如 2330)" onchange="handleStockInputChange()" style="padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; width: 160px;" />
-        <datalist id="stockList"></datalist>
-        <select id="dateDropdown" onchange="loadDate(this.value)"></select>
+        <button class="tab-btn active" id="modeStockBtn" onclick="switchMode('stock')" style="margin: 0;">📊 依股票查詢</button>
+        <button class="tab-btn" id="modeBrokerBtn" onclick="switchMode('broker')" style="margin: 0;">🏢 依券商查詢全市場</button>
+        <span id="stockModeControls">
+            <input type="text" id="stockInput" list="stockList" placeholder="輸入股票代號(如 2330)" onchange="handleStockInputChange()" style="padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; width: 160px;" />
+            <datalist id="stockList"></datalist>
+            <select id="dateDropdown" onchange="loadDate(this.value)"></select>
+        </span>
+        <span id="brokerModeControls" style="display: none;">
+            <input type="text" id="brokerQueryInput" list="brokerList" placeholder="輸入券商分點名稱(如 凱基信義)" onkeydown="if(event.key==='Enter') loadBrokerQuery()" style="padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; width: 200px;" />
+            <datalist id="brokerList"></datalist>
+            <input type="date" id="brokerQueryDate" onkeydown="if(event.key==='Enter') loadBrokerQuery()" style="padding: 6px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none;" />
+            <button class="tab-btn active" style="margin: 0;" onclick="loadBrokerQuery()">查詢</button>
+        </span>
     </div>
 
+    <div id="stockModeSection">
     <div class="card">
         <div id="bubble_chart" style="height: 500px;"></div>
     </div>
@@ -161,6 +172,28 @@
     <div class="card">
         <div id="tableWrap"><div class="loading">請選擇股票與日期</div></div>
     </div>
+    </div>
+
+    <div id="brokerModeSection" style="display: none;">
+        <div class="card">
+            <div id="brokerQueryStats" class="summary-stats"></div>
+            <div class="table-wrap" style="max-height: 650px; margin-top: 8px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortBrokerQueryTable('stock_id')">股票代號 ⇕</th>
+                            <th onclick="sortBrokerQueryTable('buy_avg')">買均價 ⇕</th>
+                            <th onclick="sortBrokerQueryTable('sell_avg')">賣均價 ⇕</th>
+                            <th onclick="sortBrokerQueryTable('total_buy_lots')">買進(張) ⇕</th>
+                            <th onclick="sortBrokerQueryTable('total_sell_lots')">賣出(張) ⇕</th>
+                            <th id="th-bq-net" class="sort-active" onclick="sortBrokerQueryTable('net_lots')">買賣超(張) ▼</th>
+                        </tr>
+                    </thead>
+                    <tbody id="brokerQueryTableBody"><tr><td colspan="6" style="text-align:center; color:#888;">請輸入券商名稱與日期後按查詢</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <div class="footer-note">資料來源:FinMind(僅呈現歷史彙總資料,非即時資料)</div>
 </div>
@@ -188,6 +221,12 @@
     let daytradeSortCol = 'net_profit';
     let daytradeSortDesc = true;
 
+    let currentMode = 'stock';
+    let brokerQueryData = [];
+    let brokerQuerySortCol = 'net_lots';
+    let brokerQuerySortDesc = true;
+    let allBrokerNames = [];
+
     async function fetchJson(url) {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -208,6 +247,102 @@
         if (allStockIds.length > 0) {
             await loadStock(allStockIds[0]);
         }
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        document.getElementById('brokerQueryDate').value = todayStr;
+    }
+
+    async function switchMode(mode) {
+        currentMode = mode;
+        document.getElementById('stockModeSection').style.display = mode === 'stock' ? 'block' : 'none';
+        document.getElementById('brokerModeSection').style.display = mode === 'broker' ? 'block' : 'none';
+        document.getElementById('stockModeControls').style.display = mode === 'stock' ? 'inline' : 'none';
+        document.getElementById('brokerModeControls').style.display = mode === 'broker' ? 'inline' : 'none';
+        document.getElementById('modeStockBtn').className = 'tab-btn ' + (mode === 'stock' ? 'active' : '');
+        document.getElementById('modeBrokerBtn').className = 'tab-btn ' + (mode === 'broker' ? 'active' : '');
+
+        if (mode === 'broker' && allBrokerNames.length === 0) {
+            allBrokerNames = await fetchJson(API_BASE + 'brokers.php');
+            const dl = document.getElementById('brokerList');
+            dl.innerHTML = '';
+            allBrokerNames.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                dl.appendChild(opt);
+            });
+        }
+    }
+
+    async function loadBrokerQuery() {
+        const broker = document.getElementById('brokerQueryInput').value.trim();
+        const date = document.getElementById('brokerQueryDate').value;
+        if (!broker || !date) {
+            alert('請輸入券商名稱跟日期');
+            return;
+        }
+
+        document.getElementById('brokerQueryTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">查詢中...</td></tr>';
+        const data = await fetchJson(API_BASE + `broker_query.php?broker=${encodeURIComponent(broker)}&date=${encodeURIComponent(date)}`);
+        brokerQueryData = data.rows || [];
+
+        if (brokerQueryData.length === 0) {
+            document.getElementById('brokerQueryStats').innerHTML = `<span>查無資料:<b>${broker}</b> 在 <b>${date}</b> 這天沒有買賣紀錄</span>`;
+            document.getElementById('brokerQueryTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">查無資料</td></tr>';
+            return;
+        }
+
+        const totalBuy = brokerQueryData.reduce((s, r) => s + r.total_buy_lots, 0);
+        const totalSell = brokerQueryData.reduce((s, r) => s + r.total_sell_lots, 0);
+        document.getElementById('brokerQueryStats').innerHTML = `
+            <span>券商:<b>${broker}</b></span>
+            <span>日期:<b>${date}</b></span>
+            <span>涉及股票數:<b>${brokerQueryData.length}</b> 檔</span>
+            <span>總買進:<span class="text-red">${totalBuy.toFixed(1)} 張</span></span>
+            <span>總賣出:<span class="text-green">${totalSell.toFixed(1)} 張</span></span>
+        `;
+        renderBrokerQueryTable();
+    }
+
+    function renderBrokerQueryTable() {
+        const items = [...brokerQueryData].sort((a, b) => {
+            let vA = a[brokerQuerySortCol], vB = b[brokerQuerySortCol];
+            if (typeof vA === 'string') return brokerQuerySortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
+            return brokerQuerySortDesc ? (vB - vA) : (vA - vB);
+        });
+
+        let html = '';
+        items.forEach(it => {
+            const cls = it.net_lots > 0 ? 'text-red' : (it.net_lots < 0 ? 'text-green' : '');
+            html += `<tr>
+                <td>${it.stock_id}</td>
+                <td>${it.buy_avg.toFixed(2)}</td>
+                <td>${it.sell_avg.toFixed(2)}</td>
+                <td class="text-red">${it.total_buy_lots.toFixed(1)}</td>
+                <td class="text-green">${it.total_sell_lots.toFixed(1)}</td>
+                <td class="${cls}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
+            </tr>`;
+        });
+        document.getElementById('brokerQueryTableBody').innerHTML = html;
+    }
+
+    function sortBrokerQueryTable(col) {
+        if (brokerQuerySortCol === col) brokerQuerySortDesc = !brokerQuerySortDesc;
+        else { brokerQuerySortCol = col; brokerQuerySortDesc = true; }
+
+        const headerMap = {
+            stock_id: null, buy_avg: null, sell_avg: null,
+            total_buy_lots: null, total_sell_lots: null, net_lots: 'th-bq-net',
+        };
+        document.querySelectorAll('#brokerModeSection th').forEach(th => {
+            th.className = '';
+            th.innerText = th.innerText.replace(/[▲▼⇕]/g, '') + ' ⇕';
+        });
+        const el = document.getElementById(headerMap[col]);
+        if (el) {
+            el.className = 'sort-active';
+            el.innerText = el.innerText.replace(/[▲▼⇕]/g, '') + (brokerQuerySortDesc ? ' ▼' : ' ▲');
+        }
+        renderBrokerQueryTable();
     }
 
     function handleStockInputChange() {
