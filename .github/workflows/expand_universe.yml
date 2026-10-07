@@ -3,7 +3,12 @@ name: Expand Universe
 on:
   schedule:
     - cron: "0 14 */3 * *"  # UTC 14:00 = 台灣時間 22:00,每 3 天跑一次
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      priority_stocks:
+        description: "要優先補的股票代號,逗號分隔(例如 1234,5678)。留空就照正常順序補下一批"
+        required: false
+        default: ""
 
 jobs:
   expand:
@@ -24,3 +29,4 @@ jobs:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
           UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
           UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
+          PRIORITY_STOCK_IDS: ${{ github.event.inputs.priority_stocks }}
