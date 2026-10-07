@@ -69,6 +69,10 @@ def main():
     upload_url = os.environ["UPLOAD_URL"]
     upload_token = os.environ["UPLOAD_TOKEN"]
     stocks_url = os.environ.get("STOCKS_URL", upload_url.replace("upload.php", "stocks.php"))
+    # 手動觸發時可以指定要優先補的股票代號(逗號分隔,例如 "1234,5678"),
+    # 不設定就照原本的全市場排序逐批補
+    priority_raw = os.environ.get("PRIORITY_STOCK_IDS", "").strip()
+    priority_ids = [s.strip() for s in priority_raw.split(",") if s.strip()]
 
     api = DataLoader()
     api.login_by_token(api_token=token)
@@ -78,6 +82,18 @@ def main():
     untracked = [s for s in full_market if s not in tracked]
 
     print(f"全市場 {len(full_market)} 檔,已涵蓋 {len(tracked)} 檔,尚未涵蓋 {len(untracked)} 檔")
+
+    if priority_ids:
+        invalid = [s for s in priority_ids if s not in full_market]
+        if invalid:
+            print(f"注意:這些代號不在全市場清單裡(可能打錯或被排除,如 ETF/指數),會略過: {invalid}")
+        already_tracked = [s for s in priority_ids if s in tracked]
+        if already_tracked:
+            print(f"這些代號已經在資料庫裡了,不用重補: {already_tracked}")
+        priority_untracked = [s for s in priority_ids if s in untracked]
+        rest = [s for s in untracked if s not in priority_untracked]
+        untracked = priority_untracked + rest
+        print(f"指定優先補的: {priority_untracked}")
 
     if not untracked:
         print("全市場都已經涵蓋了,沒有新股票要補")
