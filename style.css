@@ -1,0 +1,475 @@
+:root {
+  --ink: #14171C;
+  --ink-2: #4F5763;
+  --ink-3: #6B7380;
+  --on-dark-2: #B8C0CB;
+  --on-dark-3: #8A93A0;
+  --line-dark: #3A414B;
+  --accent: #1F3A5F;
+  --bg: #F4F5F7;
+  --surface: #FFFFFF;
+  --table-head: #F8F9FA;
+  --border: #E1E4E8;
+  --border-soft: #EEF0F2;
+  --input-border: #C9CED6;
+  --up: #C0262D;
+  --down: #1E7A3C;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Noto Sans TC', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+a { color: var(--accent); }
+a:hover { color: #0F2440; }
+
+.num {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- layout shells ---------- */
+
+.shell-tool {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shell-landing {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* ---------- top nav ---------- */
+
+.topnav {
+  background: var(--ink);
+  color: #FFFFFF;
+}
+
+.topnav-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 32px;
+  min-height: 56px;
+}
+
+.topnav-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.topnav-brand-name {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  color: #FFFFFF;
+}
+
+.topnav-brand-tag {
+  font-size: 12px;
+  color: var(--on-dark-3);
+}
+
+.topnav-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1 1 auto;
+}
+
+.topnav-tab {
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  color: #A3ABB6;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+
+.topnav-tab.active {
+  color: #FFFFFF;
+  box-shadow: inset 0 -2px 0 #FFFFFF;
+}
+
+.topnav-tab.disabled {
+  color: #5B636E;
+  cursor: default;
+}
+
+/* ---------- query form ---------- */
+
+.query-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.field input {
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  padding: 0 12px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.btn {
+  height: 44px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #FFFFFF;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn:hover { background: #0F2440; }
+
+.text-link {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+/* ---------- summary panel ---------- */
+
+.summary-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.summary-cell {
+  padding: 16px 20px;
+  flex: 1 1 160px;
+  border-right: 1px solid var(--border-soft);
+}
+
+.summary-cell:last-child { border-right: 0; }
+
+.summary-label {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.summary-value {
+  font-size: 20px;
+  margin-top: 8px;
+}
+
+.summary-value-lg {
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.summary-sub {
+  font-size: 14px;
+  margin-left: 10px;
+}
+
+/* ---------- data tables ---------- */
+
+.table-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.table-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.table-panel-note {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.table-scroll { overflow-x: auto; }
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 480px;
+}
+
+.data-table thead tr {
+  background: var(--table-head);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.data-table th {
+  font-weight: 500;
+  padding: 8px 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  text-align: left;
+  padding-left: 16px;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  padding-right: 16px;
+}
+
+.data-table td {
+  padding: 9px 12px;
+  text-align: right;
+  border-top: 1px solid var(--border-soft);
+}
+
+.data-table td.col-name {
+  white-space: nowrap;
+}
+
+.data-table td.col-muted {
+  color: var(--ink-2);
+}
+
+.net-up { color: var(--up); font-weight: 500; }
+.net-down { color: var(--down); font-weight: 500; }
+
+th.sort-th {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sort-th.active {
+  color: var(--ink);
+}
+
+.sort-icon {
+  margin-left: 2px;
+  vertical-align: -1px;
+}
+
+/* ---------- footer ---------- */
+
+.page-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+  padding-top: 8px;
+}
+
+.loading-note {
+  text-align: center;
+  color: var(--ink-3);
+  padding: 30px;
+}
+
+/* ---------- generic panel ---------- */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.panel-pad { padding: 16px; }
+
+/* ---------- in-page sub tabs (e.g. 依分點/成交價/當沖 within 依股票查詢) ---------- */
+
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+}
+
+.tab-btn {
+  height: 44px;
+  padding: 0 4px;
+  margin-right: 24px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+
+.tab-btn.active {
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* ---------- search row (dropdown + text filter combos) ---------- */
+
+.search-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.search-row label { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+
+.search-row input,
+.search-row select {
+  height: 38px;
+  box-sizing: border-box;
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* ---------- stat row (個股/分點/價位 統計列) ---------- */
+
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 0 16px 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+  align-items: center;
+}
+
+.stat-row b { color: var(--ink); font-weight: 500; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.badge-up { background: #FBE7E8; color: var(--up); }
+.badge-down { background: #E5F1E9; color: var(--down); }
+
+/* ---------- detail layout (chart + table side by side) ---------- */
+
+.detail-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 0 16px 16px;
+}
+
+.detail-chart-col { flex: 1.2 1 320px; min-width: 0; }
+.detail-table-col { flex: 0.8 1 280px; min-width: 0; }
+
+.panel-table-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+}
+
+.panel-table-wrap .data-table thead th {
+  position: sticky;
+  top: 0;
+}
+
+/* ---------- row fade-in + skeleton loading ---------- */
+
+@keyframes rowFadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.row-fade-in {
+  animation: rowFadeIn 180ms ease-out both;
+}
+
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+
+.skeleton-cell {
+  display: inline-block;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--border);
+  animation: skeletonPulse 1.1s ease-in-out infinite;
+}
+
+@media (max-width: 680px) {
+  .shell-tool { padding: 16px 14px 32px; gap: 12px; }
+  .query-form { padding: 12px; }
+  .summary-cell { flex: 1 1 50%; border-bottom: 1px solid var(--border-soft); }
+  .data-table { font-size: 12px; }
+}

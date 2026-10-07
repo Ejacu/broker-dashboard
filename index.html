@@ -1,711 +1,227 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>台股券商分點籌碼日報</title>
-    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-    <style>
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", sans-serif; margin: 0; padding: 15px; background: #F3F4F6; color: #333; overflow-x: hidden; }
-        .container { max-width: 1350px; margin: 0 auto; }
-        .card { background: #FFF; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>分點籌碼 — 看懂主力在哪個價位進出</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { background: #FFFFFF; }
 
-        .stock-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; background: #1E293B; color: #FFF; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; }
-        .stock-header select { padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; background: #FFF; }
+  .hero { background: var(--ink); color: #FFFFFF; }
+  .hero-topbar {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    gap: 12px; min-height: 64px;
+  }
+  .hero-enter-btn {
+    color: #FFFFFF; font-size: 14px; text-decoration: none;
+    border: 1px solid var(--line-dark); border-radius: 3px; padding: 10px 16px;
+  }
+  .hero-body { display: flex; flex-wrap: wrap; gap: 48px; align-items: center; padding: 72px 0 88px; }
+  .hero-left { flex: 1 1 420px; min-width: 0; }
+  .hero-eyebrow { font-size: 12px; letter-spacing: 0.12em; color: var(--on-dark-3); }
+  .hero-title { margin: 16px 0 0; font-size: 48px; line-height: 1.2; font-weight: 900; letter-spacing: 0.01em; }
+  .hero-desc { margin: 20px 0 0; font-size: 17px; color: var(--on-dark-2); max-width: 460px; }
+  .hero-form { margin-top: 36px; max-width: 480px; }
+  .hero-form label { display: block; font-size: 12px; color: var(--on-dark-3); margin-bottom: 8px; }
+  .hero-search-box { display: flex; background: #FFFFFF; border-radius: 3px; overflow: hidden; }
+  .hero-search-icon { display: flex; align-items: center; padding-left: 16px; color: var(--ink-3); }
+  .hero-search-input {
+    flex: 1 1 auto; min-width: 0; height: 56px; border: 0; padding: 0 14px;
+    font: inherit; font-size: 17px; color: var(--ink); outline: none; background: #FFFFFF;
+  }
+  .hero-search-btn {
+    display: flex; align-items: center; padding: 0 24px; background: var(--accent);
+    color: #FFFFFF; border: 0; font: inherit; font-weight: 700; white-space: nowrap; cursor: pointer;
+  }
+  .hero-hot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; }
+  .hero-hot-label { color: var(--on-dark-3); }
+  .hero-hot-link {
+    display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px;
+    border: 1px solid var(--line-dark); border-radius: 3px; color: #D5DAE1; text-decoration: none;
+  }
 
-        .tab-bar { display: flex; gap: 10px; margin-bottom: 12px; border-bottom: 2px solid #E5E7EB; padding-bottom: 8px; }
-        .tab-btn { border: none; background: #E5E7EB; font-size: 14px; font-weight: bold; padding: 8px 16px; border-radius: 6px; cursor: pointer; color: #4B5563; }
-        .tab-btn.active { background: #2563EB; color: #FFF; }
+  .hero-right { flex: 1 1 460px; min-width: 0; }
+  .preview-panel { background: #FFFFFF; border-radius: 4px; overflow: hidden; color: var(--ink); box-shadow: 0 0 0 1px #2A3038; }
+  .preview-panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  }
+  .preview-note { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
 
-        .search-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 4px 0; }
-        .search-bar input { max-width: 320px; padding: 6px 12px; font-size: 14px; border: 1px solid #CCC; border-radius: 4px; outline: none; }
-        .search-bar select { padding: 6px 12px; font-size: 14px; border: 1px solid #CCC; border-radius: 4px; outline: none; }
+  .features-section { max-width: 1160px; margin: 0 auto; padding: 88px 20px 72px; }
+  .features-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 0; margin-top: 40px; border-top: 1px solid var(--ink);
+  }
+  .feature-item { padding: 28px 28px 32px 0; border-bottom: 1px solid var(--border); }
+  .feature-no { font-size: 12px; color: var(--ink-3); }
+  .feature-title { margin: 8px 0 0; font-size: 18px; font-weight: 700; }
+  .feature-body { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; }
 
-        .summary-stats { display: flex; gap: 18px; margin-top: 8px; font-size: 14px; font-weight: 500; align-items: center; flex-wrap: wrap; }
-        .badge { padding: 3px 8px; border-radius: 4px; font-weight: bold; }
-        .badge-red { background: #FEE2E2; color: #DC2626; }
-        .badge-green { background: #DCFCE7; color: #16A34A; }
+  .data-note-section { background: var(--bg); }
+  .data-note-inner { max-width: 1160px; margin: 0 auto; padding: 64px 20px; display: flex; flex-wrap: wrap; gap: 40px; }
+  .data-note-col { flex: 2 1 480px; display: flex; flex-direction: column; gap: 16px; color: var(--ink-2); font-size: 14px; }
 
-        .detail-row { display: flex; flex-wrap: wrap; gap: 15px; }
-        .detail-chart-col { flex: 1.2; min-width: 280px; }
-        .detail-table-col { flex: 0.8; min-width: 260px; }
+  .cta-section {
+    max-width: 1160px; margin: 0 auto; padding: 72px 20px;
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px;
+  }
+  .cta-btn {
+    display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 28px;
+    background: var(--accent); color: #FFFFFF; border-radius: 3px; text-decoration: none; font-weight: 700;
+  }
 
-        .table-wrap { max-height: 410px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 4px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: right; }
-        th { background: #F9FAFB; padding: 8px 10px; font-weight: 600; border-bottom: 1px solid #E5E7EB; position: sticky; top: 0; cursor: pointer; user-select: none; }
-        th:hover { background: #EDF2F7; }
-        th.sort-active { color: #2563EB; background: #E0E7FF; }
-        td { padding: 6px 10px; border-bottom: 1px solid #F3F4F6; }
-        td:first-child, th:first-child { text-align: left; }
-        tr:hover { background-color: #F8FAFC; }
-        .text-red { color: #DC2626; font-weight: 600; }
-        .text-green { color: #16A34A; font-weight: 600; }
-
-        .footer-note { font-size: 12px; color: #888; text-align: center; margin-top: 10px; }
-        .loading { text-align: center; color: #888; padding: 40px; }
-
-        @media (max-width: 600px) {
-            body { padding: 8px; }
-            .card { padding: 10px; }
-            .stock-header { padding: 10px 12px; gap: 8px; }
-            .stock-header input, .stock-header select { width: 100%; }
-            #bubble_chart { height: 380px !important; }
-            #broker_chart, #price_chart { height: 300px !important; }
-            .tab-btn { font-size: 12px; padding: 8px 10px; }
-            table { font-size: 11px; }
-        }
-    </style>
+  .landing-footer { border-top: 1px solid var(--border); }
+  .landing-footer-inner {
+    max-width: 1160px; margin: 0 auto; padding: 24px 20px;
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+    font-size: 12px; color: var(--ink-3);
+  }
+</style>
 </head>
 <body>
-<div class="container">
-    <div class="stock-header">
-        <span style="font-size: 16px; font-weight: bold;">📊 台股券商分點籌碼日報</span>
-        <button class="tab-btn active" id="modeStockBtn" onclick="switchMode('stock')" style="margin: 0;">📊 依股票查詢</button>
-        <button class="tab-btn" id="modeBrokerBtn" onclick="switchMode('broker')" style="margin: 0;">🏢 依券商查詢全市場</button>
-        <span id="stockModeControls">
-            <input type="text" id="stockInput" list="stockList" placeholder="輸入股票代號(如 2330)" onchange="handleStockInputChange()" style="padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; width: 160px;" />
-            <datalist id="stockList"></datalist>
-            <select id="dateDropdown" onchange="loadDate(this.value)"></select>
-        </span>
-        <span id="brokerModeControls" style="display: none;">
-            <input type="text" id="brokerQueryInput" list="brokerList" placeholder="輸入券商分點名稱(如 凱基信義)" onkeydown="if(event.key==='Enter') loadBrokerQuery()" style="padding: 7px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none; width: 200px;" />
-            <datalist id="brokerList"></datalist>
-            <input type="date" id="brokerQueryDate" onkeydown="if(event.key==='Enter') loadBrokerQuery()" style="padding: 6px 12px; font-size: 15px; font-weight: bold; border-radius: 6px; border: 1px solid #475569; outline: none;" />
-            <button class="tab-btn active" style="margin: 0;" onclick="loadBrokerQuery()">查詢</button>
-        </span>
+
+<section class="hero">
+  <div class="shell-landing">
+    <div class="hero-topbar">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="font-weight: 700; font-size: 17px; letter-spacing: 0.04em;">分點籌碼</span>
+        <span style="font-size: 12px; color: var(--on-dark-3);">Taiwan Broker Flow</span>
+      </div>
+      <a href="stock.html" class="hero-enter-btn">進入查詢</a>
     </div>
 
-    <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
-        <a href="range_stock.html" style="text-decoration: none; font-size: 13px; font-weight: bold; color: #2563EB; background: #E0E7FF; padding: 6px 14px; border-radius: 6px;">📅 單一股票區間查詢</a>
-        <a href="range_broker.html" style="text-decoration: none; font-size: 13px; font-weight: bold; color: #2563EB; background: #E0E7FF; padding: 6px 14px; border-radius: 6px;">📅 全市場券商區間查詢</a>
-    </div>
+    <div class="hero-body">
+      <div class="hero-left">
+        <div class="num hero-eyebrow">BROKER BRANCH FLOW · TWSE / TPEx</div>
+        <h1 class="hero-title">看懂主力<br>在哪個價位進出</h1>
+        <p class="hero-desc">每日盤後整理全市場券商分點的買賣明細,依股票、券商、成交價位交叉查詢,找出真正在買的人。</p>
+        <form class="hero-form" onsubmit="return false;">
+          <label for="hero-q">輸入股票代號或名稱</label>
+          <div class="hero-search-box">
+            <span class="hero-search-icon">
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M12 12 L16 16" stroke="currentColor" stroke-width="1.6"></path></svg>
+            </span>
+            <input id="hero-q" class="hero-search-input" placeholder="例如 2330 或 台積電" onkeydown="if(event.key==='Enter') submitHeroSearch()" />
+            <button type="button" class="hero-search-btn" onclick="submitHeroSearch()">查詢</button>
+          </div>
+          <div class="hero-hot">
+            <span class="hero-hot-label">熱門</span>
+            <a href="stock.html?code=2330" class="hero-hot-link"><span class="num" style="margin-right: 6px;">2330</span>台積電</a>
+            <a href="stock.html?code=2317" class="hero-hot-link"><span class="num" style="margin-right: 6px;">2317</span>鴻海</a>
+            <a href="stock.html?code=2454" class="hero-hot-link"><span class="num" style="margin-right: 6px;">2454</span>聯發科</a>
+            <a href="stock.html?code=2603" class="hero-hot-link"><span class="num" style="margin-right: 6px;">2603</span>長榮</a>
+          </div>
+        </form>
+      </div>
 
-    <div id="stockModeSection">
-    <div class="card">
-        <div id="bubble_chart" style="height: 500px;"></div>
-    </div>
-
-    <div class="card">
-        <div class="tab-bar">
-            <button class="tab-btn active" id="tabBrokerBtn" onclick="switchTab('broker')">🔍 依分點查詢(看各價位明細)</button>
-            <button class="tab-btn" id="tabPriceBtn" onclick="switchTab('price')">🎯 依成交價查詢(看各券商進出)</button>
-            <button class="tab-btn" id="tabDaytradeBtn" onclick="switchTab('daytrade')">💰 當沖贏家</button>
+      <div class="hero-right">
+        <div class="preview-panel">
+          <div class="preview-panel-head">
+            <span style="font-size: 13px; font-weight: 700;">2330 台積電　價位明細</span>
+            <span class="num" style="font-size: 12px; color: var(--ink-3);">2026-10-06</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" style="min-width: 380px;">
+              <thead>
+                <tr>
+                  <th>成交價</th>
+                  <th>買進</th>
+                  <th>賣出</th>
+                  <th>淨買賣</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="num">1,090.00</td><td class="num">2,318</td><td class="num">1,976</td><td class="num net-up">+342</td></tr>
+                <tr><td class="num">1,088.00</td><td class="num">3,041</td><td class="num">2,207</td><td class="num net-up">+834</td></tr>
+                <tr><td class="num">1,085.00</td><td class="num">4,512</td><td class="num">3,288</td><td class="num net-up">+1,224</td></tr>
+                <tr><td class="num">1,082.00</td><td class="num">2,876</td><td class="num">3,105</td><td class="num net-down">-229</td></tr>
+                <tr><td class="num">1,080.00</td><td class="num">1,954</td><td class="num">2,612</td><td class="num net-down">-658</td></tr>
+                <tr><td class="num">1,078.00</td><td class="num">1,207</td><td class="num">1,388</td><td class="num net-down">-181</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-
-        <!-- 模式 1:依券商查詢 -->
-        <div id="sectionBroker">
-            <div class="search-bar">
-                <label><b>搜尋券商:</b></label>
-                <input type="text" id="brokerSearch" placeholder="輸入代碼或名稱(如:凱基、合庫)" oninput="filterBrokerDropdown()" />
-                <select id="brokerSelect" onchange="selectBroker(this.value)"></select>
-            </div>
-            <div id="brokerStats" class="summary-stats"></div>
-            <hr style="border: 0; border-top: 1px solid #E5E7EB; margin: 12px 0 16px 0;" />
-            <div class="detail-row">
-                <div class="detail-chart-col"><div id="broker_chart" style="height: 400px;"></div></div>
-                <div class="detail-table-col">
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th onclick="sortBrokerTable('price')">價格(元)⇕</th>
-                                    <th onclick="sortBrokerTable('buy')">買進(張)⇕</th>
-                                    <th onclick="sortBrokerTable('sell')">賣出(張)⇕</th>
-                                    <th onclick="sortBrokerTable('net')">淨買賣(張)⇕</th>
-                                </tr>
-                            </thead>
-                            <tbody id="brokerTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 模式 2:依價格檔位查詢 -->
-        <div id="sectionPrice" style="display: none;">
-            <div class="search-bar">
-                <label><b>選擇成交價位:</b></label>
-                <select id="priceSelect" onchange="selectPrice(this.value)"></select>
-            </div>
-            <div id="priceStats" class="summary-stats"></div>
-            <hr style="border: 0; border-top: 1px solid #E5E7EB; margin: 12px 0 16px 0;" />
-            <div class="detail-row">
-                <div class="detail-chart-col"><div id="price_chart" style="height: 400px;"></div></div>
-                <div class="detail-table-col">
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th onclick="sortPriceTable('broker')">券商名稱 ⇕</th>
-                                    <th id="th-buy" class="sort-active" onclick="sortPriceTable('buy_lots')">買進(張) ▼</th>
-                                    <th id="th-sell" onclick="sortPriceTable('sell_lots')">賣出(張) ⇕</th>
-                                    <th id="th-net" onclick="sortPriceTable('net_lots')">淨買賣(張) ⇕</th>
-                                </tr>
-                            </thead>
-                            <tbody id="priceTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 模式 3:當沖贏家(依買均/賣均估算當沖損益) -->
-        <div id="sectionDaytrade" style="display: none;">
-            <div class="summary-stats" style="margin-bottom: 8px;">
-                <span style="font-size: 12px; color: #888;">估算方式:當沖張數取買賣張數較小值;毛利=(賣均-買均)×當沖張數×1000;成本≈(賣均+買均)×0.3%×當沖張數×1000;淨損益=毛利-成本(僅供參考,非精確手續費/證交稅計算)</span>
-            </div>
-            <div class="table-wrap" style="max-height: 550px;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th onclick="sortDaytradeTable('broker')">券商 ⇕</th>
-                            <th onclick="sortDaytradeTable('buy_avg')">買均價 ⇕</th>
-                            <th onclick="sortDaytradeTable('sell_avg')">賣均價 ⇕</th>
-                            <th onclick="sortDaytradeTable('matched_lots')">當沖張數 ⇕</th>
-                            <th onclick="sortDaytradeTable('gross_profit')">毛利(元) ⇕</th>
-                            <th onclick="sortDaytradeTable('cost')">估算成本(元) ⇕</th>
-                            <th id="th-daytrade-net" class="sort-active" onclick="sortDaytradeTable('net_profit')">淨損益(元) ▼</th>
-                        </tr>
-                    </thead>
-                    <tbody id="daytradeTableBody"></tbody>
-                </table>
-            </div>
-        </div>
+        <div class="preview-note">畫面為示意資料</div>
+      </div>
     </div>
+  </div>
+</section>
 
-    <div class="card">
-        <div id="tableWrap"><div class="loading">請選擇股票與日期</div></div>
+<section class="features-section">
+  <h2 style="margin: 0; font-size: 28px; font-weight: 700;">五種角度看同一份籌碼</h2>
+  <p style="margin: 10px 0 0; color: var(--ink-2); max-width: 560px;">同一筆分點資料,換個切法就是不同的訊號。</p>
+  <div class="features-grid">
+    <div class="feature-item">
+      <div class="num feature-no">01</div>
+      <h3 class="feature-title">依股票查詢</h3>
+      <p class="feature-body">輸入一檔股票,看當天哪些分點買超、哪些賣超,以及各自的買賣均價。</p>
     </div>
+    <div class="feature-item">
+      <div class="num feature-no">02</div>
+      <h3 class="feature-title">依券商查詢</h3>
+      <p class="feature-body">選一個分點,看它當天在全市場買了哪些股票、賣了哪些股票。</p>
     </div>
+    <div class="feature-item">
+      <div class="num feature-no">03</div>
+      <h3 class="feature-title">分點價位明細</h3>
+      <p class="feature-body">鎖定某檔股票的某個分點,拆開看它在每個價位買進賣出多少張。</p>
+    </div>
+    <div class="feature-item">
+      <div class="num feature-no">04</div>
+      <h3 class="feature-title">成交價位反查</h3>
+      <p class="feature-body">從價位出發:在這個價格成交的量,是哪些券商貢獻的。</p>
+    </div>
+    <div class="feature-item">
+      <div class="num feature-no">05</div>
+      <h3 class="feature-title">當沖損益估算</h3>
+      <p class="feature-body">找出當天同時買賣的分點,估算當沖張數與淨損益,看誰是當沖贏家。</p>
+    </div>
+    <div class="feature-item">
+      <div class="num feature-no">06</div>
+      <h3 class="feature-title">區間累計</h3>
+      <p class="feature-body">把多個交易日加總,看一段期間內持續進出的分點與累計買賣超。</p>
+    </div>
+  </div>
+</section>
 
-    <div id="brokerModeSection" style="display: none;">
-        <div class="card">
-            <div id="brokerQueryStats" class="summary-stats"></div>
-            <div class="table-wrap" style="max-height: 650px; margin-top: 8px;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th onclick="sortBrokerQueryTable('stock_id')">股票代號 ⇕</th>
-                            <th onclick="sortBrokerQueryTable('buy_avg')">買均價 ⇕</th>
-                            <th onclick="sortBrokerQueryTable('sell_avg')">賣均價 ⇕</th>
-                            <th onclick="sortBrokerQueryTable('total_buy_lots')">買進(張) ⇕</th>
-                            <th onclick="sortBrokerQueryTable('total_sell_lots')">賣出(張) ⇕</th>
-                            <th id="th-bq-net" class="sort-active" onclick="sortBrokerQueryTable('net_lots')">買賣超(張) ▼</th>
-                        </tr>
-                    </thead>
-                    <tbody id="brokerQueryTableBody"><tr><td colspan="6" style="text-align:center; color:#888;">請輸入券商名稱與日期後按查詢</td></tr></tbody>
-                </table>
-            </div>
-        </div>
+<section class="data-note-section">
+  <div class="data-note-inner">
+    <div style="flex: 1 1 320px;">
+      <h2 style="margin: 0; font-size: 22px; font-weight: 700;">資料說明</h2>
     </div>
+    <div class="data-note-col">
+      <p style="margin: 0;">資料來源為 FinMind 整理之證交所、櫃買中心券商分點進出資料,於每日盤後更新,僅呈現歷史彙總,不是即時資料。</p>
+      <p style="margin: 0;">當沖損益為估算值:當沖張數取買賣較小者,成本以成交金額約 0.3% 估計,未精確計算手續費折扣與證交稅。</p>
+      <p style="margin: 0;">本站內容僅供研究參考,不構成任何投資建議。</p>
+    </div>
+  </div>
+</section>
 
-    <div class="footer-note">資料來源:FinMind(僅呈現歷史彙總資料,非即時資料)</div>
-</div>
+<section class="cta-section">
+  <h2 style="margin: 0; font-size: 28px; font-weight: 700;">今天的籌碼已經更新</h2>
+  <a href="stock.html" class="cta-btn">開始查詢
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7 H12 M8 3 L12 7 L8 11" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg>
+  </a>
+</section>
+
+<footer class="landing-footer">
+  <div class="landing-footer-inner">
+    <span>分點籌碼 · broker.tarotstock.com</span>
+    <span>資料來源:FinMind</span>
+  </div>
+</footer>
 
 <script>
-    const API_BASE = 'https://sgq.vwa.mybluehost.me/broker/'; // Bluehost 上 PHP API 的網址
-
-    let currentStock = '';
-    let currentDate = '';
-    let brokerData = {};
-    let priceData = {};
-    let allBrokers = [];
-    let allPrices = [];
-
-    let currentTab = 'broker';
-    let currentBroker = '';
-    let currentPrice = '';
-
-    let priceSortCol = 'buy_lots';
-    let priceSortDesc = true;
-    let brokerSortCol = 'price';
-    let brokerSortDesc = true;
-
-    let daytradeData = [];
-    let daytradeSortCol = 'net_profit';
-    let daytradeSortDesc = true;
-
-    let currentMode = 'stock';
-    let brokerQueryData = [];
-    let brokerQuerySortCol = 'net_lots';
-    let brokerQuerySortDesc = true;
-    let allBrokerNames = [];
-
-    async function fetchJson(url) {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-    }
-
-    let allStockIds = [];
-
-    async function init() {
-        allStockIds = await fetchJson(API_BASE + 'stocks.php');
-        const dl = document.getElementById('stockList');
-        dl.innerHTML = '';
-        allStockIds.forEach(code => {
-            const opt = document.createElement('option');
-            opt.value = code;
-            dl.appendChild(opt);
-        });
-        if (allStockIds.length > 0) {
-            await loadStock(allStockIds[0]);
-        }
-
-        const todayStr = new Date().toISOString().slice(0, 10);
-        document.getElementById('brokerQueryDate').value = todayStr;
-    }
-
-    async function switchMode(mode) {
-        currentMode = mode;
-        document.getElementById('stockModeSection').style.display = mode === 'stock' ? 'block' : 'none';
-        document.getElementById('brokerModeSection').style.display = mode === 'broker' ? 'block' : 'none';
-        document.getElementById('stockModeControls').style.display = mode === 'stock' ? 'inline' : 'none';
-        document.getElementById('brokerModeControls').style.display = mode === 'broker' ? 'inline' : 'none';
-        document.getElementById('modeStockBtn').className = 'tab-btn ' + (mode === 'stock' ? 'active' : '');
-        document.getElementById('modeBrokerBtn').className = 'tab-btn ' + (mode === 'broker' ? 'active' : '');
-
-        if (mode === 'broker' && allBrokerNames.length === 0) {
-            allBrokerNames = await fetchJson(API_BASE + 'brokers.php');
-            const dl = document.getElementById('brokerList');
-            dl.innerHTML = '';
-            allBrokerNames.forEach(name => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                dl.appendChild(opt);
-            });
-        }
-    }
-
-    async function loadBrokerQuery() {
-        const broker = document.getElementById('brokerQueryInput').value.trim();
-        const date = document.getElementById('brokerQueryDate').value;
-        if (!broker || !date) {
-            alert('請輸入券商名稱跟日期');
-            return;
-        }
-
-        document.getElementById('brokerQueryTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">查詢中...</td></tr>';
-        const data = await fetchJson(API_BASE + `broker_query.php?broker=${encodeURIComponent(broker)}&date=${encodeURIComponent(date)}`);
-        brokerQueryData = data.rows || [];
-
-        if (brokerQueryData.length === 0) {
-            document.getElementById('brokerQueryStats').innerHTML = `<span>查無資料:<b>${broker}</b> 在 <b>${date}</b> 這天沒有買賣紀錄</span>`;
-            document.getElementById('brokerQueryTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">查無資料</td></tr>';
-            return;
-        }
-
-        const totalBuy = brokerQueryData.reduce((s, r) => s + r.total_buy_lots, 0);
-        const totalSell = brokerQueryData.reduce((s, r) => s + r.total_sell_lots, 0);
-        document.getElementById('brokerQueryStats').innerHTML = `
-            <span>券商:<b>${broker}</b></span>
-            <span>日期:<b>${date}</b></span>
-            <span>涉及股票數:<b>${brokerQueryData.length}</b> 檔</span>
-            <span>總買進:<span class="text-red">${totalBuy.toFixed(1)} 張</span></span>
-            <span>總賣出:<span class="text-green">${totalSell.toFixed(1)} 張</span></span>
-        `;
-        renderBrokerQueryTable();
-    }
-
-    function renderBrokerQueryTable() {
-        const items = [...brokerQueryData].sort((a, b) => {
-            let vA = a[brokerQuerySortCol], vB = b[brokerQuerySortCol];
-            if (typeof vA === 'string') return brokerQuerySortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
-            return brokerQuerySortDesc ? (vB - vA) : (vA - vB);
-        });
-
-        let html = '';
-        items.forEach(it => {
-            const cls = it.net_lots > 0 ? 'text-red' : (it.net_lots < 0 ? 'text-green' : '');
-            html += `<tr>
-                <td>${it.stock_id}</td>
-                <td>${it.buy_avg.toFixed(2)}</td>
-                <td>${it.sell_avg.toFixed(2)}</td>
-                <td class="text-red">${it.total_buy_lots.toFixed(1)}</td>
-                <td class="text-green">${it.total_sell_lots.toFixed(1)}</td>
-                <td class="${cls}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
-            </tr>`;
-        });
-        document.getElementById('brokerQueryTableBody').innerHTML = html;
-    }
-
-    function sortBrokerQueryTable(col) {
-        if (brokerQuerySortCol === col) brokerQuerySortDesc = !brokerQuerySortDesc;
-        else { brokerQuerySortCol = col; brokerQuerySortDesc = true; }
-
-        const headerMap = {
-            stock_id: null, buy_avg: null, sell_avg: null,
-            total_buy_lots: null, total_sell_lots: null, net_lots: 'th-bq-net',
-        };
-        document.querySelectorAll('#brokerModeSection th').forEach(th => {
-            th.className = '';
-            th.innerText = th.innerText.replace(/[▲▼⇕]/g, '') + ' ⇕';
-        });
-        const el = document.getElementById(headerMap[col]);
-        if (el) {
-            el.className = 'sort-active';
-            el.innerText = el.innerText.replace(/[▲▼⇕]/g, '') + (brokerQuerySortDesc ? ' ▼' : ' ▲');
-        }
-        renderBrokerQueryTable();
-    }
-
-    function handleStockInputChange() {
-        const val = document.getElementById('stockInput').value.trim();
-        if (!val) return;
-        if (allStockIds.includes(val)) {
-            loadStock(val);
-        } else {
-            alert(`找不到股票代號 [${val}]`);
-            document.getElementById('stockInput').value = currentStock;
-        }
-    }
-
-    async function loadStock(stockCode) {
-        currentStock = stockCode;
-        document.getElementById('stockInput').value = stockCode;
-
-        const dates = await fetchJson(API_BASE + `dates.php?stock=${encodeURIComponent(stockCode)}`);
-        const dd = document.getElementById('dateDropdown');
-        dd.innerHTML = '';
-        dates.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d;
-            opt.textContent = d;
-            dd.appendChild(opt);
-        });
-        if (dates.length > 0) {
-            await loadDate(dates[0]);
-        }
-    }
-
-    async function loadDate(dateStr) {
-        currentDate = dateStr;
-        document.getElementById('dateDropdown').value = dateStr;
-
-        const data = await fetchJson(API_BASE + `data.php?stock=${encodeURIComponent(currentStock)}&date=${encodeURIComponent(dateStr)}`);
-
-        renderBubbleChart(data.summary);
-        renderTable(data.summary);
-
-        brokerData = data.broker_details || {};
-        allBrokers = Object.keys(brokerData).sort();
-
-        priceData = {};
-        allBrokers.forEach(b => {
-            const d = brokerData[b];
-            for (let i = 0; i < d.prices.length; i++) {
-                const p = d.prices[i].toFixed(2);
-                const bl = d.buy_lots[i];
-                const sl = d.sell_lots[i];
-                const nl = d.net_lots_list[i];
-                if (!priceData[p]) {
-                    priceData[p] = { total_buy: 0, total_sell: 0, total_volume: 0, items: [] };
-                }
-                priceData[p].total_buy += bl;
-                priceData[p].total_sell += sl;
-                priceData[p].total_volume = Math.max(priceData[p].total_buy, priceData[p].total_sell);
-                priceData[p].items.push({ broker: b, buy_lots: bl, sell_lots: sl, net_lots: nl, total_lots: (bl + sl) });
-            }
-        });
-        allPrices = Object.keys(priceData).sort((a, b) => parseFloat(b) - parseFloat(a));
-
-        populateBrokerDropdown(allBrokers);
-        populatePriceDropdown(allPrices);
-
-        currentBroker = allBrokers[0] || '';
-        currentPrice = allPrices[0] || '';
-
-        daytradeData = data.daytrade || [];
-        daytradeSortCol = 'net_profit';
-        daytradeSortDesc = true;
-
-        if (currentTab === 'price') renderPrice(currentPrice);
-        else if (currentTab === 'daytrade') renderDaytrade();
-        else renderBroker(currentBroker);
-    }
-
-    function renderBubbleChart(summaryList) {
-        const buyItems = summaryList.filter(x => x.action === '買超');
-        const sellItems = summaryList.filter(x => x.action === '賣超');
-        const maxLots = Math.max(...summaryList.map(x => x.abs_lots), 1);
-        const sizeref = 2.0 * maxLots / (55 ** 2);
-
-        const makeTrace = (items, name, color) => ({
-            x: items.map(x => x.main_avg),
-            y: items.map(x => x.net_lots),
-            mode: 'markers',
-            name: name,
-            marker: { size: items.map(x => x.abs_lots), sizemode: 'area', sizeref: sizeref, sizemin: 6, color: color, opacity: 0.75, line: { width: 1, color: '#FFFFFF' } },
-            hovertemplate: "<b>%{customdata[0]}</b><br>買進均價: %{customdata[1]:.2f} 元<br>賣出均價: %{customdata[2]:.2f} 元<br>買賣超: %{y:,.1f} 張<br><extra></extra>",
-            customdata: items.map(x => [x.broker, x.buy_avg, x.sell_avg])
-        });
-
-        const isMobile = window.innerWidth < 600;
-        Plotly.newPlot('bubble_chart', [
-            makeTrace(buyItems, '買超分點 (紅)', '#E74C3C'),
-            makeTrace(sellItems, '賣超分點 (綠)', '#27AE60')
-        ], {
-            title: { text: `<b>【${currentStock}】 ${currentDate}</b>`, font: { size: isMobile ? 13 : 17 } },
-            xaxis: { title: '成交均價 (元)', gridcolor: '#ECECEC' },
-            yaxis: { title: '買賣超張數 (張)', zeroline: true, zerolinewidth: 2, zerolinecolor: '#333', gridcolor: '#ECECEC' },
-            plot_bgcolor: '#FAFAFA',
-            margin: { t: 45, b: 40, l: 55, r: 20 }
-        }, { responsive: true, displayModeBar: false });
-
-        document.getElementById('bubble_chart').on('plotly_click', function (evtData) {
-            if (evtData.points.length > 0) {
-                const bName = evtData.points[0].customdata[0];
-                switchTab('broker');
-                selectBroker(bName);
-            }
-        });
-    }
-
-    function renderTable(summaryList) {
-        const sorted = [...summaryList].sort((a, b) => b.net_lots - a.net_lots);
-        let html = `<table><thead><tr>
-            <th>券商</th><th>買均價</th><th>賣均價</th><th>買賣超(張)</th><th>總買進(張)</th><th>總賣出(張)</th>
-        </tr></thead><tbody>`;
-        sorted.forEach(it => {
-            const cls = it.net_lots > 0 ? 'text-red' : 'text-green';
-            html += `<tr>
-                <td>${it.broker}</td>
-                <td>${it.buy_avg.toFixed(2)}</td>
-                <td>${it.sell_avg.toFixed(2)}</td>
-                <td class="${cls}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
-                <td>${it.total_buy_lots.toFixed(1)}</td>
-                <td>${it.total_sell_lots.toFixed(1)}</td>
-            </tr>`;
-        });
-        html += '</tbody></table>';
-        document.getElementById('tableWrap').innerHTML = html;
-    }
-
-    function switchTab(tab) {
-        currentTab = tab;
-        document.getElementById('sectionBroker').style.display = tab === 'broker' ? 'block' : 'none';
-        document.getElementById('sectionPrice').style.display = tab === 'price' ? 'block' : 'none';
-        document.getElementById('sectionDaytrade').style.display = tab === 'daytrade' ? 'block' : 'none';
-        document.getElementById('tabBrokerBtn').className = 'tab-btn ' + (tab === 'broker' ? 'active' : '');
-        document.getElementById('tabPriceBtn').className = 'tab-btn ' + (tab === 'price' ? 'active' : '');
-        document.getElementById('tabDaytradeBtn').className = 'tab-btn ' + (tab === 'daytrade' ? 'active' : '');
-        if (tab === 'price') renderPrice(currentPrice);
-        else if (tab === 'daytrade') renderDaytrade();
-        else renderBroker(currentBroker);
-    }
-
-    function populateBrokerDropdown(list) {
-        const bSelect = document.getElementById('brokerSelect');
-        bSelect.innerHTML = '';
-        list.forEach(name => {
-            const opt = document.createElement('option');
-            opt.value = name; opt.textContent = name;
-            bSelect.appendChild(opt);
-        });
-    }
-
-    function populatePriceDropdown(list) {
-        const pSelect = document.getElementById('priceSelect');
-        pSelect.innerHTML = '';
-        list.forEach(p => {
-            const opt = document.createElement('option');
-            const v = priceData[p].total_volume.toFixed(1);
-            opt.value = p;
-            opt.textContent = `${p} 元(成交 ${v} 張)`;
-            pSelect.appendChild(opt);
-        });
-    }
-
-    function filterBrokerDropdown() {
-        const q = document.getElementById('brokerSearch').value.trim().toLowerCase();
-        const filtered = allBrokers.filter(b => b.toLowerCase().includes(q));
-        populateBrokerDropdown(filtered);
-        if (filtered.length > 0) selectBroker(filtered[0]);
-    }
-
-    function selectBroker(b) {
-        currentBroker = b;
-        document.getElementById('brokerSelect').value = b;
-        renderBroker(b);
-    }
-    function selectPrice(p) {
-        currentPrice = p;
-        document.getElementById('priceSelect').value = p;
-        renderPrice(p);
-    }
-
-    function renderBroker(brokerName) {
-        const d = brokerData[brokerName];
-        if (!d) return;
-        document.getElementById('brokerSelect').value = brokerName;
-
-        const isNetBuy = d.net_lots >= 0;
-        const buyAvgStr = d.buy_avg > 0 ? `${d.buy_avg} 元` : '--';
-        const sellAvgStr = d.sell_avg > 0 ? `${d.sell_avg} 元` : '--';
-
-        document.getElementById('brokerStats').innerHTML = `
-            <span>分點:<b>${brokerName}</b></span>
-            <span>買均:<b class="text-red">${buyAvgStr}</b></span>
-            <span>賣均:<b class="text-green">${sellAvgStr}</b></span>
-            <span>買賣超:<span class="badge ${isNetBuy ? 'badge-red' : 'badge-green'}">${d.net_lots > 0 ? '+' : ''}${d.net_lots} 張</span></span>
-            <span>總買進:<b>${d.total_buy_lots} 張</b></span>
-            <span>總賣出:<b>${d.total_sell_lots} 張</b></span>
-        `;
-
-        const sortedIndices = d.prices.map((p, i) => i).sort((a, b) => d.prices[a] - d.prices[b]);
-        const traceBuy = { x: sortedIndices.map(i => d.prices[i]), y: sortedIndices.map(i => d.buy_lots[i]), name: '買進 (張)', type: 'bar', marker: { color: '#DC2626' } };
-        const traceSell = { x: sortedIndices.map(i => d.prices[i]), y: sortedIndices.map(i => d.sell_lots[i]), name: '賣出 (張)', type: 'bar', marker: { color: '#16A34A' } };
-
-        Plotly.newPlot('broker_chart', [traceBuy, traceSell], {
-            title: { text: `<b>各價位量能分佈</b>`, font: { size: window.innerWidth < 600 ? 12 : 14 } },
-            barmode: 'group',
-            xaxis: { title: '成交價格 (元)', type: 'category' },
-            yaxis: { title: '張數 (張)', gridcolor: '#F0F0F0' },
-            plot_bgcolor: '#FFF',
-            margin: { t: 35, b: 40, l: 50, r: 10 },
-            legend: { orientation: 'h', y: 1.15 }
-        }, { responsive: true, displayModeBar: false });
-
-        renderBrokerTableRows(d);
-    }
-
-    function renderBrokerTableRows(d) {
-        let items = [];
-        for (let i = 0; i < d.prices.length; i++) {
-            items.push({ price: d.prices[i], buy: d.buy_lots[i], sell: d.sell_lots[i], net: d.net_lots_list[i] });
-        }
-        items.sort((a, b) => brokerSortDesc ? (b[brokerSortCol] - a[brokerSortCol]) : (a[brokerSortCol] - b[brokerSortCol]));
-
-        let html = '';
-        items.forEach(it => {
-            const nClass = it.net > 0 ? 'text-red' : (it.net < 0 ? 'text-green' : '');
-            html += `<tr>
-                <td>${it.price.toFixed(2)}</td>
-                <td class="text-red">${it.buy.toFixed(1)}</td>
-                <td class="text-green">${it.sell.toFixed(1)}</td>
-                <td class="${nClass}">${it.net > 0 ? '+' : ''}${it.net.toFixed(1)}</td>
-            </tr>`;
-        });
-        document.getElementById('brokerTableBody').innerHTML = html;
-    }
-
-    function sortBrokerTable(col) {
-        if (brokerSortCol === col) brokerSortDesc = !brokerSortDesc;
-        else { brokerSortCol = col; brokerSortDesc = true; }
-        renderBrokerTableRows(brokerData[currentBroker]);
-    }
-
-    function renderPrice(priceStr) {
-        const pObj = priceData[priceStr];
-        if (!pObj) return;
-
-        document.getElementById('priceStats').innerHTML = `
-            <span>價格檔位:<b>${priceStr} 元</b></span>
-            <span>檔位總成交量:<b>${pObj.total_volume.toFixed(1)} 張</b></span>
-            <span>總買進:<span class="text-red">${pObj.total_buy.toFixed(1)} 張</span></span>
-            <span>總賣出:<span class="text-green">${pObj.total_sell.toFixed(1)} 張</span></span>
-        `;
-
-        let items = [...pObj.items];
-        items.sort((a, b) => {
-            let vA = a[priceSortCol], vB = b[priceSortCol];
-            if (typeof vA === 'string') return priceSortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
-            return priceSortDesc ? (vB - vA) : (vA - vB);
-        });
-
-        const top15 = [...items].sort((a, b) => b.total_lots - a.total_lots).slice(0, 15).reverse();
-        const traceBuy = { y: top15.map(x => x.broker), x: top15.map(x => x.buy_lots), name: '買進 (張)', type: 'bar', orientation: 'h', marker: { color: '#DC2626' } };
-        const traceSell = { y: top15.map(x => x.broker), x: top15.map(x => x.sell_lots), name: '賣出 (張)', type: 'bar', orientation: 'h', marker: { color: '#16A34A' } };
-
-        Plotly.newPlot('price_chart', [traceBuy, traceSell], {
-            title: { text: `<b>${priceStr} 元 成交量前 15 大券商</b>`, font: { size: window.innerWidth < 600 ? 12 : 15 }, x: 0.05, y: 0.98 },
-            barmode: 'group',
-            xaxis: { title: { text: '張數 (張)', standoff: 8 }, gridcolor: '#F0F0F0' },
-            yaxis: { automargin: true, tickfont: { size: 12 } },
-            margin: { t: 55, b: 40, l: 90, r: 15 },
-            legend: { orientation: 'h', y: 1.12, x: 0.05 }
-        }, { responsive: true, displayModeBar: false });
-
-        let html = '';
-        items.forEach(it => {
-            const nClass = it.net_lots > 0 ? 'text-red' : (it.net_lots < 0 ? 'text-green' : '');
-            html += `<tr>
-                <td>${it.broker}</td>
-                <td class="text-red">${it.buy_lots.toFixed(1)}</td>
-                <td class="text-green">${it.sell_lots.toFixed(1)}</td>
-                <td class="${nClass}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
-            </tr>`;
-        });
-        document.getElementById('priceTableBody').innerHTML = html;
-    }
-
-    function sortPriceTable(col) {
-        if (priceSortCol === col) priceSortDesc = !priceSortDesc;
-        else { priceSortCol = col; priceSortDesc = true; }
-
-        ['buy_lots', 'sell_lots', 'net_lots'].forEach(c => {
-            const id = c === 'buy_lots' ? 'th-buy' : (c === 'sell_lots' ? 'th-sell' : 'th-net');
-            const el = document.getElementById(id);
-            if (el) {
-                if (priceSortCol === c) {
-                    el.className = 'sort-active';
-                    el.innerText = el.innerText.replace(/[▲▼⇕]/g, '') + (priceSortDesc ? ' ▼' : ' ▲');
-                } else {
-                    el.className = '';
-                    el.innerText = el.innerText.replace(/[▲▼⇕]/g, '') + ' ⇕';
-                }
-            }
-        });
-        renderPrice(currentPrice);
-    }
-
-    function renderDaytrade() {
-        const items = [...daytradeData].sort((a, b) => {
-            let vA = a[daytradeSortCol], vB = b[daytradeSortCol];
-            if (typeof vA === 'string') return daytradeSortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
-            return daytradeSortDesc ? (vB - vA) : (vA - vB);
-        });
-
-        let html = '';
-        items.forEach(it => {
-            const cls = it.net_profit > 0 ? 'text-red' : (it.net_profit < 0 ? 'text-green' : '');
-            html += `<tr>
-                <td>${it.broker}</td>
-                <td>${it.buy_avg.toFixed(2)}</td>
-                <td>${it.sell_avg.toFixed(2)}</td>
-                <td>${it.matched_lots.toFixed(1)}</td>
-                <td>${it.gross_profit.toLocaleString()}</td>
-                <td>${it.cost.toLocaleString()}</td>
-                <td class="${cls}">${it.net_profit > 0 ? '+' : ''}${it.net_profit.toLocaleString()}</td>
-            </tr>`;
-        });
-        document.getElementById('daytradeTableBody').innerHTML = html || '<tr><td colspan="7" style="text-align:center; color:#888;">這天沒有偵測到當沖部位</td></tr>';
-    }
-
-    function sortDaytradeTable(col) {
-        if (daytradeSortCol === col) daytradeSortDesc = !daytradeSortDesc;
-        else { daytradeSortCol = col; daytradeSortDesc = true; }
-
-        const headerMap = {
-            broker: null, buy_avg: null, sell_avg: null, matched_lots: null,
-            gross_profit: null, cost: null, net_profit: 'th-daytrade-net',
-        };
-        const el = document.getElementById(headerMap[col]);
-        document.querySelectorAll('#sectionDaytrade th').forEach(th => {
-            th.className = '';
-            th.innerText = th.innerText.replace(/[▲▼⇕]/g, '') + ' ⇕';
-        });
-        if (el) {
-            el.className = 'sort-active';
-            el.innerText = el.innerText.replace(/[▲▼⇕]/g, '') + (daytradeSortDesc ? ' ▼' : ' ▲');
-        }
-        renderDaytrade();
-    }
-
-    init().catch(err => {
-        document.getElementById('tableWrap').innerHTML = `<div class="loading">載入失敗:${err.message}</div>`;
-    });
+  function submitHeroSearch() {
+    const val = document.getElementById('hero-q').value.trim();
+    if (!val) return;
+    window.location.href = 'stock.html?code=' + encodeURIComponent(val);
+  }
 </script>
+
 </body>
 </html>

@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>依股票查詢 — 分點籌碼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  select.date-select {
+    height: 40px;
+    box-sizing: border-box;
+    border: 1px solid var(--input-border);
+    border-radius: 3px;
+    padding: 0 12px;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--surface);
+  }
+  @media (max-width: 680px) {
+    .detail-layout { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="topnav-inner">
+    <a href="index.html" class="topnav-brand">
+      <span class="topnav-brand-name">分點籌碼</span>
+      <span class="topnav-brand-tag">Taiwan Broker Flow</span>
+    </a>
+    <nav class="topnav-tabs">
+      <a href="stock.html" class="topnav-tab active">依股票</a>
+      <a href="broker.html" class="topnav-tab">依券商</a>
+      <a href="range_stock.html" class="topnav-tab">區間查詢</a>
+    </nav>
+  </div>
+</header>
+
+<main class="shell-tool">
+
+  <form class="query-form" onsubmit="return false;">
+    <div class="field" style="flex: 1 1 220px;">
+      <label for="q-stock">股票代號 / 名稱</label>
+      <input id="q-stock" list="stockList" placeholder="例如 2330" onchange="handleStockInputChange()" />
+      <datalist id="stockList"></datalist>
+    </div>
+    <div class="field" style="flex: 0 1 180px;">
+      <label for="q-date">交易日</label>
+      <select id="q-date" class="date-select" onchange="loadDate(this.value)"></select>
+    </div>
+    <button type="button" class="btn" onclick="handleStockInputChange()">查詢</button>
+    <a href="range_stock.html" id="rangeLink" class="text-link">改用區間查詢</a>
+  </form>
+
+  <section class="summary-panel">
+    <div class="summary-cell">
+      <div class="summary-label" id="sumStockLabel">股票代號</div>
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 4px;">
+        <span class="num summary-value-lg" id="sumAvgPrice">--</span>
+      </div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">成交量(張)</div>
+      <div class="num summary-value" id="sumVolume">--</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">有交易分點</div>
+      <div class="num summary-value" id="sumBrokerCount">--</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">前 15 大淨買超合計</div>
+      <div class="num summary-value" id="sumTop15">--</div>
+    </div>
+  </section>
+
+  <section class="panel panel-pad">
+    <div id="bubble_chart" style="height: 500px;"></div>
+  </section>
+
+  <section class="panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabBrokerBtn" onclick="switchTab('broker')">依分點查詢</button>
+      <button class="tab-btn" id="tabPriceBtn" onclick="switchTab('price')">依成交價查詢</button>
+      <button class="tab-btn" id="tabDaytradeBtn" onclick="switchTab('daytrade')">當沖贏家</button>
+    </div>
+
+    <!-- 依分點查詢 -->
+    <div id="sectionBroker">
+      <div class="search-row">
+        <label>搜尋券商</label>
+        <input type="text" id="brokerSearch" placeholder="輸入代碼或名稱(如:凱基、合庫)" oninput="filterBrokerDropdown()" style="width: 220px;" />
+        <select id="brokerSelect" onchange="selectBroker(this.value)" style="min-width: 160px;"></select>
+      </div>
+      <div id="brokerStats" class="stat-row"></div>
+      <div class="detail-layout">
+        <div class="detail-chart-col"><div id="broker_chart" style="height: 380px;"></div></div>
+        <div class="detail-table-col">
+          <div class="panel-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="sort-th active" data-col="price" onclick="sortBrokerTable('price')">價格(元)</th>
+                  <th class="sort-th" data-col="buy" onclick="sortBrokerTable('buy')">買進(張)</th>
+                  <th class="sort-th" data-col="sell" onclick="sortBrokerTable('sell')">賣出(張)</th>
+                  <th class="sort-th" data-col="net" onclick="sortBrokerTable('net')">淨買賣(張)</th>
+                </tr>
+              </thead>
+              <tbody id="brokerTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 依成交價查詢 -->
+    <div id="sectionPrice" style="display: none;">
+      <div class="search-row">
+        <label>選擇成交價位</label>
+        <select id="priceSelect" onchange="selectPrice(this.value)" style="min-width: 220px;"></select>
+      </div>
+      <div id="priceStats" class="stat-row"></div>
+      <div class="detail-layout">
+        <div class="detail-chart-col"><div id="price_chart" style="height: 380px;"></div></div>
+        <div class="detail-table-col">
+          <div class="panel-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th data-col="broker">券商名稱</th>
+                  <th class="sort-th active" data-col="buy_lots" onclick="sortPriceTable('buy_lots')">買進(張)</th>
+                  <th class="sort-th" data-col="sell_lots" onclick="sortPriceTable('sell_lots')">賣出(張)</th>
+                  <th class="sort-th" data-col="net_lots" onclick="sortPriceTable('net_lots')">淨買賣(張)</th>
+                </tr>
+              </thead>
+              <tbody id="priceTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 當沖贏家 -->
+    <div id="sectionDaytrade" style="display: none;">
+      <div class="stat-row">
+        <span style="font-size: 12px; color: var(--ink-3);">估算方式:當沖張數取買賣張數較小值;毛利=(賣均-買均)×當沖張數×1000;成本≈(賣均+買均)×0.3%×當沖張數×1000;淨損益=毛利-成本(僅供參考,非精確手續費/證交稅計算)</span>
+      </div>
+      <div style="padding: 0 16px 16px;">
+        <div class="panel-table-wrap" style="max-height: 550px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-col="broker">券商</th>
+                <th class="sort-th" data-col="buy_avg" onclick="sortDaytradeTable('buy_avg')">買均價</th>
+                <th class="sort-th" data-col="sell_avg" onclick="sortDaytradeTable('sell_avg')">賣均價</th>
+                <th class="sort-th" data-col="matched_lots" onclick="sortDaytradeTable('matched_lots')">當沖張數</th>
+                <th class="sort-th" data-col="gross_profit" onclick="sortDaytradeTable('gross_profit')">毛利(元)</th>
+                <th class="sort-th" data-col="cost" onclick="sortDaytradeTable('cost')">估算成本(元)</th>
+                <th class="sort-th active" data-col="net_profit" onclick="sortDaytradeTable('net_profit')">淨損益(元)</th>
+              </tr>
+            </thead>
+            <tbody id="daytradeTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="table-panel">
+    <div class="table-panel-head">
+      <h2 class="table-panel-title">全部券商</h2>
+      <span class="table-panel-note">依淨買賣排序</span>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>券商</th>
+            <th>買均價</th>
+            <th>賣均價</th>
+            <th>買賣超(張)</th>
+            <th>總買進(張)</th>
+            <th>總賣出(張)</th>
+          </tr>
+        </thead>
+        <tbody id="tableWrap"><tr><td colspan="6" class="loading-note">請選擇股票與日期</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <span>資料來源:FinMind · 盤後彙總資料,非即時</span>
+    <span>單位:張 · 均價非官方收盤價,為分點成交均價估算</span>
+  </footer>
+</main>
+
+<script>
+  // ---- 資料抓取與計算邏輯沿用原本 index.html 的版本,這裡只重做畫面 ----
+  const API_BASE = 'https://sgq.vwa.mybluehost.me/broker/';
+  const COLOR_UP = '#C0262D';
+  const COLOR_DOWN = '#1E7A3C';
+
+  let allStockIds = [];
+  let currentStock = '';
+  let currentDate = '';
+
+  let brokerData = {};
+  let priceData = {};
+  let allBrokers = [];
+  let allPrices = [];
+
+  let currentTab = 'broker';
+  let currentBroker = '';
+  let currentPrice = '';
+
+  let priceSortCol = 'buy_lots';
+  let priceSortDesc = true;
+  let brokerSortCol = 'price';
+  let brokerSortDesc = true;
+
+  let daytradeData = [];
+  let daytradeSortCol = 'net_profit';
+  let daytradeSortDesc = true;
+
+  async function fetchJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  function downIcon() {
+    return '<svg class="sort-icon" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M1 2.5 L4 5.5 L7 2.5" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg>';
+  }
+  function upIcon() {
+    return '<svg class="sort-icon" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M1 5.5 L4 2.5 L7 5.5" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg>';
+  }
+
+  function skeletonRows(cols, rows = 6) {
+    let html = '';
+    for (let r = 0; r < rows; r++) {
+      html += '<tr>';
+      for (let c = 0; c < cols; c++) {
+        const w = 40 + Math.floor(Math.random() * 50);
+        html += `<td><span class="skeleton-cell" style="width:${w}px;"></span></td>`;
+      }
+      html += '</tr>';
+    }
+    return html;
+  }
+
+  function staggerRows(containerEl) {
+    containerEl.querySelectorAll('tr').forEach((tr, i) => {
+      tr.classList.add('row-fade-in');
+      tr.style.animationDelay = Math.min(i * 20, 280) + 'ms';
+    });
+  }
+
+  function updateSortHeaders(scopeEl, col, desc) {
+    scopeEl.querySelectorAll('thead th').forEach(th => {
+      th.classList.remove('active');
+      th.innerHTML = th.innerText;
+    });
+    const activeTh = scopeEl.querySelector(`thead th[data-col="${col}"]`);
+    if (activeTh) {
+      activeTh.classList.add('active');
+      activeTh.innerHTML = activeTh.innerText + (desc ? downIcon() : upIcon());
+    }
+  }
+
+  let initialLoadDone = false;
+
+  async function init() {
+    allStockIds = await fetchJson(API_BASE + 'stocks.php');
+    const dl = document.getElementById('stockList');
+    dl.innerHTML = '';
+    allStockIds.forEach(code => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      dl.appendChild(opt);
+    });
+    if (allStockIds.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const urlCode = params.get('code');
+    const urlDate = params.get('date');
+
+    if (urlCode && !allStockIds.includes(urlCode)) {
+      alert(`找不到股票代號 [${urlCode}],改顯示預設股票`);
+    }
+    const initialStock = (urlCode && allStockIds.includes(urlCode)) ? urlCode : allStockIds[0];
+    await loadStock(initialStock, urlDate);
+  }
+
+  function handleStockInputChange() {
+    const val = document.getElementById('q-stock').value.trim();
+    if (!val) return;
+    if (allStockIds.includes(val)) {
+      loadStock(val);
+    } else {
+      alert(`找不到股票代號 [${val}]`);
+      document.getElementById('q-stock').value = currentStock;
+    }
+  }
+
+  async function loadStock(stockCode, preferredDate) {
+    currentStock = stockCode;
+    document.getElementById('q-stock').value = stockCode;
+
+    const dates = await fetchJson(API_BASE + `dates.php?stock=${encodeURIComponent(stockCode)}`);
+    const dd = document.getElementById('q-date');
+    dd.innerHTML = '';
+    dates.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d;
+      dd.appendChild(opt);
+    });
+    if (dates.length === 0) return;
+    const dateToLoad = (preferredDate && dates.includes(preferredDate)) ? preferredDate : dates[0];
+    await loadDate(dateToLoad);
+  }
+
+  function updateUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('code', currentStock);
+    url.searchParams.set('date', currentDate);
+    if (!initialLoadDone) {
+      history.replaceState({ stock: currentStock, date: currentDate }, '', url);
+      initialLoadDone = true;
+    } else {
+      history.pushState({ stock: currentStock, date: currentDate }, '', url);
+    }
+  }
+
+  async function loadDate(dateStr) {
+    currentDate = dateStr;
+    document.getElementById('q-date').value = dateStr;
+    updateUrl();
+    document.getElementById('rangeLink').href = `range_stock.html?stock=${encodeURIComponent(currentStock)}`;
+    document.getElementById('tableWrap').innerHTML = skeletonRows(6);
+
+    const data = await fetchJson(API_BASE + `data.php?stock=${encodeURIComponent(currentStock)}&date=${encodeURIComponent(dateStr)}`);
+
+    renderSummaryPanel(data.summary || []);
+    renderBubbleChart(data.summary);
+    renderTable(data.summary);
+
+    brokerData = data.broker_details || {};
+    allBrokers = Object.keys(brokerData).sort();
+
+    priceData = {};
+    allBrokers.forEach(b => {
+      const d = brokerData[b];
+      for (let i = 0; i < d.prices.length; i++) {
+        const p = d.prices[i].toFixed(2);
+        const bl = d.buy_lots[i];
+        const sl = d.sell_lots[i];
+        const nl = d.net_lots_list[i];
+        if (!priceData[p]) {
+          priceData[p] = { total_buy: 0, total_sell: 0, total_volume: 0, items: [] };
+        }
+        priceData[p].total_buy += bl;
+        priceData[p].total_sell += sl;
+        priceData[p].total_volume = Math.max(priceData[p].total_buy, priceData[p].total_sell);
+        priceData[p].items.push({ broker: b, buy_lots: bl, sell_lots: sl, net_lots: nl, total_lots: (bl + sl) });
+      }
+    });
+    allPrices = Object.keys(priceData).sort((a, b) => parseFloat(b) - parseFloat(a));
+
+    populateBrokerDropdown(allBrokers);
+    populatePriceDropdown(allPrices);
+
+    currentBroker = allBrokers[0] || '';
+    currentPrice = allPrices[0] || '';
+
+    daytradeData = data.daytrade || [];
+    daytradeSortCol = 'net_profit';
+    daytradeSortDesc = true;
+
+    if (currentTab === 'price') renderPrice(currentPrice);
+    else if (currentTab === 'daytrade') renderDaytrade();
+    else renderBroker(currentBroker);
+  }
+
+  function renderSummaryPanel(summaryList) {
+    document.getElementById('sumStockLabel').innerText = currentStock + '　' + currentDate;
+
+    if (!summaryList || summaryList.length === 0) {
+      document.getElementById('sumAvgPrice').innerText = '--';
+      document.getElementById('sumVolume').innerText = '0';
+      document.getElementById('sumBrokerCount').innerText = '0';
+      document.getElementById('sumTop15').innerText = '0';
+      return;
+    }
+
+    let priceNum = 0, priceDen = 0, volume = 0;
+    summaryList.forEach(it => {
+      const vol = it.total_buy_lots + it.total_sell_lots;
+      priceNum += it.main_avg * vol;
+      priceDen += vol;
+      volume += it.total_buy_lots;
+    });
+    const avgPrice = priceDen > 0 ? (priceNum / priceDen) : 0;
+    document.getElementById('sumAvgPrice').innerText = avgPrice.toFixed(2);
+    document.getElementById('sumVolume').innerText = Math.round(volume).toLocaleString();
+    document.getElementById('sumBrokerCount').innerText = summaryList.length;
+
+    const top15 = [...summaryList].sort((a, b) => b.net_lots - a.net_lots).slice(0, 15);
+    const top15Sum = top15.reduce((s, r) => s + r.net_lots, 0);
+    const top15El = document.getElementById('sumTop15');
+    top15El.innerText = (top15Sum > 0 ? '+' : '') + top15Sum.toFixed(1);
+    top15El.className = 'num summary-value ' + (top15Sum > 0 ? 'net-up' : (top15Sum < 0 ? 'net-down' : ''));
+  }
+
+  function renderBubbleChart(summaryList) {
+    const buyItems = summaryList.filter(x => x.action === '買超');
+    const sellItems = summaryList.filter(x => x.action === '賣超');
+    const maxLots = Math.max(...summaryList.map(x => x.abs_lots), 1);
+    const sizeref = 2.0 * maxLots / (55 ** 2);
+
+    const makeTrace = (items, name, color) => ({
+      x: items.map(x => x.main_avg),
+      y: items.map(x => x.net_lots),
+      mode: 'markers',
+      name: name,
+      marker: { size: items.map(x => x.abs_lots), sizemode: 'area', sizeref: sizeref, sizemin: 6, color: color, opacity: 0.8, line: { width: 1, color: '#FFFFFF' } },
+      hovertemplate: "<b>%{customdata[0]}</b><br>買進均價: %{customdata[1]:.2f} 元<br>賣出均價: %{customdata[2]:.2f} 元<br>買賣超: %{y:,.1f} 張<br><extra></extra>",
+      customdata: items.map(x => [x.broker, x.buy_avg, x.sell_avg])
+    });
+
+    const isMobile = window.innerWidth < 600;
+    Plotly.newPlot('bubble_chart', [
+      makeTrace(buyItems, '買超分點', COLOR_UP),
+      makeTrace(sellItems, '賣超分點', COLOR_DOWN)
+    ], {
+      title: { text: `${currentStock}　${currentDate}`, font: { family: 'Noto Sans TC, sans-serif', size: isMobile ? 13 : 15, color: '#14171C' } },
+      xaxis: { title: '成交均價 (元)', gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
+      yaxis: { title: '買賣超張數 (張)', zeroline: true, zerolinewidth: 1, zerolinecolor: '#C9CED6', gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
+      font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
+      plot_bgcolor: '#FFFFFF',
+      paper_bgcolor: '#FFFFFF',
+      margin: { t: 40, b: 40, l: 55, r: 20 }
+    }, { responsive: true, displayModeBar: false });
+
+    document.getElementById('bubble_chart').on('plotly_click', function (evtData) {
+      if (evtData.points.length > 0) {
+        const bName = evtData.points[0].customdata[0];
+        switchTab('broker');
+        selectBroker(bName);
+      }
+    });
+  }
+
+  function renderTable(summaryList) {
+    const sorted = [...summaryList].sort((a, b) => b.net_lots - a.net_lots);
+    let html = '';
+    sorted.forEach(it => {
+      const cls = it.net_lots > 0 ? 'net-up' : 'net-down';
+      html += `<tr>
+        <td class="col-name">${it.broker}</td>
+        <td class="num col-muted">${it.buy_avg.toFixed(2)}</td>
+        <td class="num col-muted">${it.sell_avg.toFixed(2)}</td>
+        <td class="num ${cls}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
+        <td class="num">${it.total_buy_lots.toFixed(1)}</td>
+        <td class="num">${it.total_sell_lots.toFixed(1)}</td>
+      </tr>`;
+    });
+    document.getElementById('tableWrap').innerHTML = html;
+    staggerRows(document.getElementById('tableWrap'));
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('sectionBroker').style.display = tab === 'broker' ? 'block' : 'none';
+    document.getElementById('sectionPrice').style.display = tab === 'price' ? 'block' : 'none';
+    document.getElementById('sectionDaytrade').style.display = tab === 'daytrade' ? 'block' : 'none';
+    document.getElementById('tabBrokerBtn').className = 'tab-btn ' + (tab === 'broker' ? 'active' : '');
+    document.getElementById('tabPriceBtn').className = 'tab-btn ' + (tab === 'price' ? 'active' : '');
+    document.getElementById('tabDaytradeBtn').className = 'tab-btn ' + (tab === 'daytrade' ? 'active' : '');
+    if (tab === 'price') renderPrice(currentPrice);
+    else if (tab === 'daytrade') renderDaytrade();
+    else renderBroker(currentBroker);
+  }
+
+  function populateBrokerDropdown(list) {
+    const bSelect = document.getElementById('brokerSelect');
+    bSelect.innerHTML = '';
+    list.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      bSelect.appendChild(opt);
+    });
+  }
+
+  function populatePriceDropdown(list) {
+    const pSelect = document.getElementById('priceSelect');
+    pSelect.innerHTML = '';
+    list.forEach(p => {
+      const opt = document.createElement('option');
+      const v = priceData[p].total_volume.toFixed(1);
+      opt.value = p;
+      opt.textContent = `${p} 元(成交 ${v} 張)`;
+      pSelect.appendChild(opt);
+    });
+  }
+
+  function filterBrokerDropdown() {
+    const q = document.getElementById('brokerSearch').value.trim().toLowerCase();
+    const filtered = allBrokers.filter(b => b.toLowerCase().includes(q));
+    populateBrokerDropdown(filtered);
+    if (filtered.length > 0) selectBroker(filtered[0]);
+  }
+
+  function selectBroker(b) {
+    currentBroker = b;
+    document.getElementById('brokerSelect').value = b;
+    renderBroker(b);
+  }
+  function selectPrice(p) {
+    currentPrice = p;
+    document.getElementById('priceSelect').value = p;
+    renderPrice(p);
+  }
+
+  function renderBroker(brokerName) {
+    const d = brokerData[brokerName];
+    if (!d) return;
+    document.getElementById('brokerSelect').value = brokerName;
+
+    const isNetBuy = d.net_lots >= 0;
+    const buyAvgStr = d.buy_avg > 0 ? `${d.buy_avg} 元` : '--';
+    const sellAvgStr = d.sell_avg > 0 ? `${d.sell_avg} 元` : '--';
+
+    document.getElementById('brokerStats').innerHTML = `
+      <span>分點:<b>${brokerName}</b></span>
+      <span>買均:<b class="num" style="color: var(--up);">${buyAvgStr}</b></span>
+      <span>賣均:<b class="num" style="color: var(--down);">${sellAvgStr}</b></span>
+      <span>買賣超:<span class="num badge ${isNetBuy ? 'badge-up' : 'badge-down'}">${d.net_lots > 0 ? '+' : ''}${d.net_lots} 張</span></span>
+      <span>總買進:<b class="num">${d.total_buy_lots} 張</b></span>
+      <span>總賣出:<b class="num">${d.total_sell_lots} 張</b></span>
+    `;
+
+    const sortedIndices = d.prices.map((p, i) => i).sort((a, b) => d.prices[a] - d.prices[b]);
+    const traceBuy = { x: sortedIndices.map(i => d.prices[i]), y: sortedIndices.map(i => d.buy_lots[i]), name: '買進 (張)', type: 'bar', marker: { color: COLOR_UP } };
+    const traceSell = { x: sortedIndices.map(i => d.prices[i]), y: sortedIndices.map(i => d.sell_lots[i]), name: '賣出 (張)', type: 'bar', marker: { color: COLOR_DOWN } };
+
+    Plotly.newPlot('broker_chart', [traceBuy, traceSell], {
+      title: { text: '各價位量能分佈', font: { family: 'Noto Sans TC, sans-serif', size: window.innerWidth < 600 ? 12 : 13, color: '#14171C' } },
+      barmode: 'group',
+      xaxis: { title: '成交價格 (元)', type: 'category', tickfont: { family: 'IBM Plex Mono, monospace' } },
+      yaxis: { title: '張數 (張)', gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
+      font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
+      plot_bgcolor: '#FFFFFF',
+      paper_bgcolor: '#FFFFFF',
+      margin: { t: 35, b: 40, l: 50, r: 10 },
+      legend: { orientation: 'h', y: 1.18 }
+    }, { responsive: true, displayModeBar: false });
+
+    renderBrokerTableRows(d);
+  }
+
+  function renderBrokerTableRows(d) {
+    let items = [];
+    for (let i = 0; i < d.prices.length; i++) {
+      items.push({ price: d.prices[i], buy: d.buy_lots[i], sell: d.sell_lots[i], net: d.net_lots_list[i] });
+    }
+    items.sort((a, b) => brokerSortDesc ? (b[brokerSortCol] - a[brokerSortCol]) : (a[brokerSortCol] - b[brokerSortCol]));
+
+    let html = '';
+    items.forEach(it => {
+      const nClass = it.net > 0 ? 'net-up' : (it.net < 0 ? 'net-down' : '');
+      html += `<tr>
+        <td class="num">${it.price.toFixed(2)}</td>
+        <td class="num" style="color: var(--up);">${it.buy.toFixed(1)}</td>
+        <td class="num" style="color: var(--down);">${it.sell.toFixed(1)}</td>
+        <td class="num ${nClass}">${it.net > 0 ? '+' : ''}${it.net.toFixed(1)}</td>
+      </tr>`;
+    });
+    document.getElementById('brokerTableBody').innerHTML = html;
+    staggerRows(document.getElementById('brokerTableBody'));
+    updateSortHeaders(document.getElementById('brokerTableBody').closest('table'), brokerSortCol, brokerSortDesc);
+  }
+
+  function sortBrokerTable(col) {
+    if (brokerSortCol === col) brokerSortDesc = !brokerSortDesc;
+    else { brokerSortCol = col; brokerSortDesc = true; }
+    renderBrokerTableRows(brokerData[currentBroker]);
+  }
+
+  function renderPrice(priceStr) {
+    const pObj = priceData[priceStr];
+    if (!pObj) return;
+
+    document.getElementById('priceStats').innerHTML = `
+      <span>價格檔位:<b class="num">${priceStr} 元</b></span>
+      <span>檔位總成交量:<b class="num">${pObj.total_volume.toFixed(1)} 張</b></span>
+      <span>總買進:<span class="num" style="color: var(--up);">${pObj.total_buy.toFixed(1)} 張</span></span>
+      <span>總賣出:<span class="num" style="color: var(--down);">${pObj.total_sell.toFixed(1)} 張</span></span>
+    `;
+
+    let items = [...pObj.items];
+    items.sort((a, b) => {
+      let vA = a[priceSortCol], vB = b[priceSortCol];
+      if (typeof vA === 'string') return priceSortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
+      return priceSortDesc ? (vB - vA) : (vA - vB);
+    });
+
+    const top15 = [...items].sort((a, b) => b.total_lots - a.total_lots).slice(0, 15).reverse();
+    const traceBuy = { y: top15.map(x => x.broker), x: top15.map(x => x.buy_lots), name: '買進 (張)', type: 'bar', orientation: 'h', marker: { color: COLOR_UP } };
+    const traceSell = { y: top15.map(x => x.broker), x: top15.map(x => x.sell_lots), name: '賣出 (張)', type: 'bar', orientation: 'h', marker: { color: COLOR_DOWN } };
+
+    Plotly.newPlot('price_chart', [traceBuy, traceSell], {
+      title: { text: `${priceStr} 元 成交量前 15 大券商`, font: { family: 'Noto Sans TC, sans-serif', size: window.innerWidth < 600 ? 12 : 13, color: '#14171C' }, x: 0.02, y: 0.98 },
+      barmode: 'group',
+      xaxis: { title: { text: '張數 (張)', standoff: 8 }, gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
+      yaxis: { automargin: true, tickfont: { size: 12 } },
+      font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
+      plot_bgcolor: '#FFFFFF',
+      paper_bgcolor: '#FFFFFF',
+      margin: { t: 50, b: 40, l: 90, r: 15 },
+      legend: { orientation: 'h', y: 1.12, x: 0.02 }
+    }, { responsive: true, displayModeBar: false });
+
+    let html = '';
+    items.forEach(it => {
+      const nClass = it.net_lots > 0 ? 'net-up' : (it.net_lots < 0 ? 'net-down' : '');
+      html += `<tr>
+        <td class="col-name">${it.broker}</td>
+        <td class="num" style="color: var(--up);">${it.buy_lots.toFixed(1)}</td>
+        <td class="num" style="color: var(--down);">${it.sell_lots.toFixed(1)}</td>
+        <td class="num ${nClass}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
+      </tr>`;
+    });
+    document.getElementById('priceTableBody').innerHTML = html;
+    staggerRows(document.getElementById('priceTableBody'));
+    updateSortHeaders(document.getElementById('priceTableBody').closest('table'), priceSortCol, priceSortDesc);
+  }
+
+  function sortPriceTable(col) {
+    if (priceSortCol === col) priceSortDesc = !priceSortDesc;
+    else { priceSortCol = col; priceSortDesc = true; }
+    renderPrice(currentPrice);
+  }
+
+  function renderDaytrade() {
+    const items = [...daytradeData].sort((a, b) => {
+      let vA = a[daytradeSortCol], vB = b[daytradeSortCol];
+      if (typeof vA === 'string') return daytradeSortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
+      return daytradeSortDesc ? (vB - vA) : (vA - vB);
+    });
+
+    let html = '';
+    items.forEach(it => {
+      const cls = it.net_profit > 0 ? 'net-up' : (it.net_profit < 0 ? 'net-down' : '');
+      html += `<tr>
+        <td class="col-name">${it.broker}</td>
+        <td class="num">${it.buy_avg.toFixed(2)}</td>
+        <td class="num">${it.sell_avg.toFixed(2)}</td>
+        <td class="num">${it.matched_lots.toFixed(1)}</td>
+        <td class="num">${it.gross_profit.toLocaleString()}</td>
+        <td class="num">${it.cost.toLocaleString()}</td>
+        <td class="num ${cls}">${it.net_profit > 0 ? '+' : ''}${it.net_profit.toLocaleString()}</td>
+      </tr>`;
+    });
+    document.getElementById('daytradeTableBody').innerHTML = html || '<tr><td colspan="7" class="loading-note">這天沒有偵測到當沖部位</td></tr>';
+    staggerRows(document.getElementById('daytradeTableBody'));
+    updateSortHeaders(document.getElementById('daytradeTableBody').closest('table'), daytradeSortCol, daytradeSortDesc);
+  }
+
+  function sortDaytradeTable(col) {
+    if (daytradeSortCol === col) daytradeSortDesc = !daytradeSortDesc;
+    else { daytradeSortCol = col; daytradeSortDesc = true; }
+    renderDaytrade();
+  }
+
+  window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const date = params.get('date');
+    if (code && allStockIds.includes(code)) {
+      loadStock(code, date);
+    }
+  });
+
+  init().catch(err => {
+    document.getElementById('tableWrap').innerHTML = `<tr><td colspan="6" class="loading-note">載入失敗:${err.message}</td></tr>`;
+  });
+</script>
+
+</body>
+</html>
