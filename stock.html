@@ -61,8 +61,13 @@
     <div class="summary-cell">
       <div class="summary-label" id="sumStockLabel">股票代號</div>
       <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 4px;">
-        <span class="num summary-value-lg" id="sumAvgPrice">--</span>
+        <span class="num summary-value-lg" id="sumClose">--</span>
+        <span class="num" id="sumChange" style="font-size: 14px;"></span>
       </div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">全日分點成交加權均價<br>(非官方收盤價)</div>
+      <div class="num summary-value" id="sumAvgPrice">--</div>
     </div>
     <div class="summary-cell">
       <div class="summary-label">成交量(張)</div>
@@ -76,6 +81,18 @@
       <div class="summary-label">前 15 大淨買超合計</div>
       <div class="num summary-value" id="sumTop15">--</div>
     </div>
+  </section>
+
+  <section class="panel panel-pad">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <h2 style="margin: 0; font-size: 14px; font-weight: 700;">股價走勢(官方收盤價)</h2>
+      <div style="display: flex; gap: 4px;">
+        <button class="tab-btn" id="priceRange30" onclick="setPriceRangeDays(30)" style="height: 32px; padding: 0 10px;">近 30 天</button>
+        <button class="tab-btn active" id="priceRange90" onclick="setPriceRangeDays(90)" style="height: 32px; padding: 0 10px;">近 90 天</button>
+        <button class="tab-btn" id="priceRange365" onclick="setPriceRangeDays(365)" style="height: 32px; padding: 0 10px;">近 1 年</button>
+      </div>
+    </div>
+    <div id="price_trend_chart" style="height: 220px;"></div>
   </section>
 
   <section class="panel panel-pad">
@@ -225,6 +242,7 @@
   let daytradeData = [];
   let daytradeSortCol = 'net_profit';
   let daytradeSortDesc = true;
+  let priceRangeDays = 90;
 
   async function fetchJson(url) {
     const res = await fetch(url);
@@ -309,6 +327,7 @@
   async function loadStock(stockCode, preferredDate) {
     currentStock = stockCode;
     document.getElementById('q-stock').value = stockCode;
+    loadPriceTrend();
 
     const dates = await fetchJson(API_BASE + `dates.php?stock=${encodeURIComponent(stockCode)}`);
     const dd = document.getElementById('q-date');
@@ -345,7 +364,7 @@
 
     const data = await fetchJson(API_BASE + `data.php?stock=${encodeURIComponent(currentStock)}&date=${encodeURIComponent(dateStr)}`);
 
-    renderSummaryPanel(data.summary || []);
+    renderSummaryPanel(data.summary || [], data.price || null);
     renderBubbleChart(data.summary);
     renderTable(data.summary);
 
@@ -386,8 +405,21 @@
     else renderBroker(currentBroker);
   }
 
-  function renderSummaryPanel(summaryList) {
+  function renderSummaryPanel(summaryList, price) {
     document.getElementById('sumStockLabel').innerText = currentStock + '　' + currentDate;
+
+    const closeEl = document.getElementById('sumClose');
+    const changeEl = document.getElementById('sumChange');
+    if (price) {
+      closeEl.innerText = price.close.toFixed(2);
+      const cls = price.change > 0 ? 'net-up' : (price.change < 0 ? 'net-down' : '');
+      changeEl.className = 'num ' + cls;
+      changeEl.style.fontSize = '14px';
+      changeEl.innerText = (price.change > 0 ? '+' : '') + price.change.toFixed(2) + ' (' + (price.change_pct > 0 ? '+' : '') + price.change_pct.toFixed(2) + '%)';
+    } else {
+      closeEl.innerText = '尚無資料';
+      changeEl.innerText = '';
+    }
 
     if (!summaryList || summaryList.length === 0) {
       document.getElementById('sumAvgPrice').innerText = '--';
@@ -414,6 +446,42 @@
     const top15El = document.getElementById('sumTop15');
     top15El.innerText = (top15Sum > 0 ? '+' : '') + top15Sum.toFixed(1);
     top15El.className = 'num summary-value ' + (top15Sum > 0 ? 'net-up' : (top15Sum < 0 ? 'net-down' : ''));
+  }
+
+  async function loadPriceTrend() {
+    const data = await fetchJson(API_BASE + `stock_price_history.php?stock=${encodeURIComponent(currentStock)}&days=${priceRangeDays}`);
+    renderPriceTrend(data.rows || []);
+  }
+
+  function setPriceRangeDays(days) {
+    priceRangeDays = days;
+    document.getElementById('priceRange30').className = 'tab-btn' + (days === 30 ? ' active' : '');
+    document.getElementById('priceRange90').className = 'tab-btn' + (days === 90 ? ' active' : '');
+    document.getElementById('priceRange365').className = 'tab-btn' + (days === 365 ? ' active' : '');
+    loadPriceTrend();
+  }
+
+  function renderPriceTrend(rows) {
+    if (rows.length === 0) {
+      document.getElementById('price_trend_chart').innerHTML = '<div class="loading-note">尚無收盤價歷史資料</div>';
+      return;
+    }
+    const trace = {
+      x: rows.map(r => r.trade_date),
+      y: rows.map(r => r.close),
+      mode: 'lines',
+      type: 'scatter',
+      line: { color: COLOR_UP, width: 1.6 },
+      hovertemplate: '%{x}<br>收盤:%{y:.2f}<extra></extra>',
+    };
+    Plotly.newPlot('price_trend_chart', [trace], {
+      xaxis: { tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
+      yaxis: { tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
+      font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
+      plot_bgcolor: '#FFFFFF',
+      paper_bgcolor: '#FFFFFF',
+      margin: { t: 10, b: 30, l: 50, r: 15 },
+    }, { responsive: true, displayModeBar: false });
   }
 
   function renderBubbleChart(summaryList) {

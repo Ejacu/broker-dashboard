@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 
 from FinMind.data import DataLoader
 
-from daily_update import summarize, summarize_price_detail, request_with_retry
+from daily_update import summarize, summarize_price_detail, request_with_retry, update_price_range
 
 BATCH_SIZE = 50
 HISTORY_DAYS = 370   # 新股票要往前補多少天的彙總資料(略多於一年,涵蓋所有交易日)
@@ -140,6 +140,12 @@ def main():
                 fail_days += 1
 
         print(f"{stock_id} 完成:成功 {ok_days} 天,失敗 {fail_days} 天")
+
+        # 官方收盤價:taiwan_stock_daily 支援一次查一整段範圍,一檔股票只要 1 次 API 呼叫
+        update_price_range(
+            upload_url, upload_token, api, stock_id,
+            history_start.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"),
+        )
 
     print("這批全部處理完畢")
 

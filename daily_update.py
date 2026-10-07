@@ -112,6 +112,56 @@ def summarize_price_detail(df, stock_id: str, trade_date: str) -> list:
     return records
 
 
+def summarize_price(df) -> list:
+    """官方日收盤價 + 漲跌(來自 taiwan_stock_daily,跟分點資料是不同的 dataset)。
+    這個 dataset 支援一次查一段日期範圍,不用像分點資料那樣逐日查。"""
+    records = []
+    if df.empty:
+        return records
+    df = df.sort_values("date")
+    has_spread = "spread" in df.columns
+    prev_close = None
+    for _, row in df.iterrows():
+        close = float(row["close"])
+        if has_spread:
+            change_val = float(row["spread"])
+        elif prev_close is not None:
+            change_val = close - prev_close
+        else:
+            change_val = 0.0
+        base = close - change_val
+        change_pct = (change_val / base * 100.0) if base else 0.0
+        records.append({
+            "stock_id": str(row["stock_id"]),
+            "date": str(row["date"]),
+            "close": round(close, 2),
+            "change": round(change_val, 2),
+            "change_pct": round(change_pct, 2),
+        })
+        prev_close = close
+    return records
+
+
+def update_price_range(upload_url: str, upload_token: str, api: DataLoader, stock_id: str, start_date: str, end_date: str) -> None:
+    try:
+        df = api.taiwan_stock_daily(stock_id=stock_id, start_date=start_date, end_date=end_date)
+    except Exception as exc:
+        print(f"{stock_id} 收盤價查詢失敗 {start_date}~{end_date}: {exc}")
+        return
+    if df.empty:
+        return
+    price_records = summarize_price(df)
+    if not price_records:
+        return
+    resp = request_with_retry(
+        "POST",
+        upload_url,
+        json={"token": upload_token, "records": [], "detail_records": [], "price_records": price_records},
+        timeout=60,
+    )
+    print(f"{stock_id} 收盤價 {start_date}~{end_date}: {len(price_records)} 筆 -> {resp.status_code}")
+
+
 def update_one(upload_url: str, upload_token: str, api: DataLoader, stock_id: str, trade_date: str) -> None:
     df = api.taiwan_stock_trading_daily_report(stock_id=stock_id, date=trade_date)
     if df.empty:
@@ -153,13 +203,21 @@ def main():
         if override_date:
             # 手動指定日期時(除錯/補特定一天用),不做缺口檢查,就只抓這一天
             target_dates = [override_date]
+            price_start, price_end = override_date, override_date
         else:
             # 正常排程:檢查最近 LOOKBACK_DAYS 天裡,資料庫還缺哪幾天,自動補上
             existing = get_existing_dates(dates_url, stock_id)
-            target_dates = [d for d in recent_dates(LOOKBACK_DAYS) if d not in existing]
+            all_recent = recent_dates(LOOKBACK_DAYS)
+            target_dates = [d for d in all_recent if d not in existing]
+            price_start, price_end = (min(all_recent), max(all_recent)) if all_recent else (None, None)
 
         for trade_date in target_dates:
             update_one(upload_url, upload_token, api, stock_id, trade_date)
+
+        # 收盤價一次查一段範圍就好,不用像分點資料那樣逐日查缺口,
+        # 每天都重查一次最近這段範圍,自動蓋掉舊值,成本只有多一次 API 呼叫
+        if price_start and price_end:
+            update_price_range(upload_url, upload_token, api, stock_id, price_start, price_end)
 
 
 if __name__ == "__main__":
