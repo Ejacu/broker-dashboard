@@ -12,11 +12,16 @@ define('DB_PASS', 'your_cpanel_dbpass');
 // 要跟 GitHub Actions 的 UPLOAD_TOKEN secret 設成完全一樣的值
 define('UPLOAD_TOKEN', 'CHANGE_ME_TO_A_LONG_RANDOM_STRING');
 
-// 前端(Vercel)網域,只允許這個來源讀取資料
-define('ALLOWED_ORIGIN', 'https://broker.tarotstock.com');
+// 前端網域,只允許這些來源讀取資料(可以放正式網域 + Vercel 預覽網址,測完拿掉預覽網址即可)
+define('ALLOWED_ORIGINS', [
+    'https://broker.tarotstock.com',
+]);
 
 function send_cors_headers() {
-    header('Access-Control-Allow-Origin: ' . ALLOWED_ORIGIN);
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if (in_array($origin, ALLOWED_ORIGINS, true)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+    }
     header('Access-Control-Allow-Methods: GET, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type');
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {

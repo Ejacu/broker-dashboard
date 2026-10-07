@@ -113,16 +113,22 @@ def summarize_price_detail(df, stock_id: str, trade_date: str) -> list:
 
 
 def summarize_price(df) -> list:
-    """官方日收盤價 + 漲跌(來自 taiwan_stock_daily,跟分點資料是不同的 dataset)。
+    """官方日 OHLC + 漲跌(來自 taiwan_stock_daily,跟分點資料是不同的 dataset)。
     這個 dataset 支援一次查一段日期範圍,不用像分點資料那樣逐日查。"""
     records = []
     if df.empty:
         return records
     df = df.sort_values("date")
     has_spread = "spread" in df.columns
+    has_ohlc = "open" in df.columns and "max" in df.columns and "min" in df.columns
+    has_volume = "Trading_Volume" in df.columns
     prev_close = None
     for _, row in df.iterrows():
         close = float(row["close"])
+        open_p = float(row["open"]) if has_ohlc else close
+        high_p = float(row["max"]) if has_ohlc else close
+        low_p = float(row["min"]) if has_ohlc else close
+        volume_lots = (float(row["Trading_Volume"]) / 1000.0) if has_volume else 0.0
         if has_spread:
             change_val = float(row["spread"])
         elif prev_close is not None:
@@ -134,7 +140,11 @@ def summarize_price(df) -> list:
         records.append({
             "stock_id": str(row["stock_id"]),
             "date": str(row["date"]),
+            "open": round(open_p, 2),
+            "high": round(high_p, 2),
+            "low": round(low_p, 2),
             "close": round(close, 2),
+            "volume": round(volume_lots, 1),
             "change": round(change_val, 2),
             "change_pct": round(change_pct, 2),
         })

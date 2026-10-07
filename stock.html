@@ -85,14 +85,14 @@
 
   <section class="panel panel-pad">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <h2 style="margin: 0; font-size: 14px; font-weight: 700;">股價走勢(官方收盤價)</h2>
+      <h2 style="margin: 0; font-size: 14px; font-weight: 700;">股價走勢(官方日線,開高低收)</h2>
       <div style="display: flex; gap: 4px;">
         <button class="tab-btn" id="priceRange30" onclick="setPriceRangeDays(30)" style="height: 32px; padding: 0 10px;">近 30 天</button>
         <button class="tab-btn active" id="priceRange90" onclick="setPriceRangeDays(90)" style="height: 32px; padding: 0 10px;">近 90 天</button>
         <button class="tab-btn" id="priceRange365" onclick="setPriceRangeDays(365)" style="height: 32px; padding: 0 10px;">近 1 年</button>
       </div>
     </div>
-    <div id="price_trend_chart" style="height: 220px;"></div>
+    <div id="price_trend_chart" style="height: 320px;"></div>
   </section>
 
   <section class="panel panel-pad">
@@ -463,24 +463,40 @@
 
   function renderPriceTrend(rows) {
     if (rows.length === 0) {
-      document.getElementById('price_trend_chart').innerHTML = '<div class="loading-note">尚無收盤價歷史資料</div>';
+      document.getElementById('price_trend_chart').innerHTML = '<div class="loading-note">尚無收盤價歷史資料(需先在後端跑過收盤價回補)</div>';
       return;
     }
-    const trace = {
-      x: rows.map(r => r.trade_date),
-      y: rows.map(r => r.close),
-      mode: 'lines',
-      type: 'scatter',
-      line: { color: COLOR_UP, width: 1.6 },
-      hovertemplate: '%{x}<br>收盤:%{y:.2f}<extra></extra>',
+    const dates = rows.map(r => r.trade_date);
+    const candleTrace = {
+      x: dates,
+      open: rows.map(r => r.open),
+      high: rows.map(r => r.high),
+      low: rows.map(r => r.low),
+      close: rows.map(r => r.close),
+      type: 'candlestick',
+      xaxis: 'x', yaxis: 'y',
+      increasing: { line: { color: COLOR_UP }, fillcolor: COLOR_UP },
+      decreasing: { line: { color: COLOR_DOWN }, fillcolor: COLOR_DOWN },
+      name: '',
     };
-    Plotly.newPlot('price_trend_chart', [trace], {
-      xaxis: { tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
-      yaxis: { tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
+    const volTrace = {
+      x: dates,
+      y: rows.map(r => r.volume),
+      type: 'bar',
+      xaxis: 'x', yaxis: 'y2',
+      marker: { color: rows.map(r => r.close >= r.open ? COLOR_UP : COLOR_DOWN), opacity: 0.6 },
+      name: '成交量',
+      hovertemplate: '%{x}<br>成交量:%{y:,.0f} 張<extra></extra>',
+    };
+    Plotly.newPlot('price_trend_chart', [candleTrace, volTrace], {
+      xaxis: { rangeslider: { visible: false }, tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
+      yaxis: { domain: [0.32, 1], tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
+      yaxis2: { domain: [0, 0.24], tickfont: { family: 'IBM Plex Mono, monospace', size: 10 }, gridcolor: '#EEF0F2' },
       font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
       plot_bgcolor: '#FFFFFF',
       paper_bgcolor: '#FFFFFF',
       margin: { t: 10, b: 30, l: 50, r: 15 },
+      showlegend: false,
     }, { responsive: true, displayModeBar: false });
   }
 
