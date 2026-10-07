@@ -10,6 +10,10 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: expand-universe
+  cancel-in-progress: false
+
 jobs:
   expand:
     runs-on: ubuntu-latest
