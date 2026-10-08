@@ -309,7 +309,9 @@
     if (urlCode && !allStockIds.includes(urlCode)) {
       alert(`找不到股票代號 [${urlCode}],改顯示預設股票`);
     }
-    const initialStock = (urlCode && allStockIds.includes(urlCode)) ? urlCode : allStockIds[0];
+    const DEFAULT_STOCK = '2330';
+    const fallbackStock = allStockIds.includes(DEFAULT_STOCK) ? DEFAULT_STOCK : allStockIds[0];
+    const initialStock = (urlCode && allStockIds.includes(urlCode)) ? urlCode : fallbackStock;
     await loadStock(initialStock, urlDate);
   }
 
@@ -489,7 +491,7 @@
       hovertemplate: '%{x}<br>成交量:%{y:,.0f} 張<extra></extra>',
     };
     Plotly.newPlot('price_trend_chart', [candleTrace, volTrace], {
-      xaxis: { rangeslider: { visible: false }, tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
+      xaxis: { type: 'category', nticks: 10, rangeslider: { visible: false }, tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
       yaxis: { domain: [0.32, 1], tickfont: { family: 'IBM Plex Mono, monospace', size: 11 }, gridcolor: '#EEF0F2' },
       yaxis2: { domain: [0, 0.24], tickfont: { family: 'IBM Plex Mono, monospace', size: 10 }, gridcolor: '#EEF0F2' },
       font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
