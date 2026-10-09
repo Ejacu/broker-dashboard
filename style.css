@@ -298,6 +298,9 @@ table.data-table {
 .net-up { color: var(--up); font-weight: 500; }
 .net-down { color: var(--down); font-weight: 500; }
 
+tr.row-click { cursor: pointer; }
+tr.row-click:hover { background: var(--table-head); }
+
 th.sort-th {
   cursor: pointer;
   user-select: none;

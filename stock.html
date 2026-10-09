@@ -132,6 +132,44 @@
           </div>
         </div>
       </div>
+
+      <div style="border-top: 1px solid var(--border); margin-top: 4px;">
+        <div class="table-panel-head" style="border-bottom: 1px solid var(--border-soft);">
+          <h2 class="table-panel-title" id="brokerHistoryTitle">該分點歷史</h2>
+          <span class="table-panel-note">點日期展開當天價位明細</span>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" id="brokerHistoryTable">
+            <thead>
+              <tr>
+                <th data-col="date">日期</th>
+                <th class="sort-th" data-col="buy_avg" onclick="sortBrokerHistory('buy_avg')">買均價</th>
+                <th class="sort-th" data-col="sell_avg" onclick="sortBrokerHistory('sell_avg')">賣均價</th>
+                <th class="sort-th" data-col="total_buy_lots" onclick="sortBrokerHistory('total_buy_lots')">買進(張)</th>
+                <th class="sort-th" data-col="total_sell_lots" onclick="sortBrokerHistory('total_sell_lots')">賣出(張)</th>
+                <th class="sort-th active" data-col="net_lots" onclick="sortBrokerHistory('net_lots')">淨買賣(張)</th>
+              </tr>
+            </thead>
+            <tbody id="brokerHistoryBody"><tr><td colspan="6" class="loading-note">請選擇分點</td></tr></tbody>
+          </table>
+        </div>
+        <div id="brokerHistoryDetail" style="display: none; border-top: 1px dashed var(--border);">
+          <div style="padding: 12px 16px 0; font-size: 13px; font-weight: 700;" id="brokerHistoryDetailTitle"></div>
+          <div class="table-scroll" style="padding: 8px 16px 14px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>價格(元)</th>
+                  <th>買進(張)</th>
+                  <th>賣出(張)</th>
+                  <th>淨買賣(張)</th>
+                </tr>
+              </thead>
+              <tbody id="brokerHistoryDetailBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 依成交價查詢 -->
@@ -187,7 +225,7 @@
     </div>
   </section>
 
-  <section class="table-panel">
+  <section class="table-panel" id="allBrokersPanel" style="display: none;">
     <div class="table-panel-head">
       <h2 class="table-panel-title">全部券商</h2>
       <span class="table-panel-note">依淨買賣排序</span>
@@ -243,6 +281,10 @@
   let daytradeSortCol = 'net_profit';
   let daytradeSortDesc = true;
   let priceRangeDays = 90;
+  let brokerHistoryData = [];
+  let brokerHistorySortCol = 'net_lots';
+  let brokerHistorySortDesc = true;
+  let activeHistoryDate = '';
 
   async function fetchJson(url) {
     const res = await fetch(url);
@@ -564,6 +606,7 @@
     document.getElementById('sectionBroker').style.display = tab === 'broker' ? 'block' : 'none';
     document.getElementById('sectionPrice').style.display = tab === 'price' ? 'block' : 'none';
     document.getElementById('sectionDaytrade').style.display = tab === 'daytrade' ? 'block' : 'none';
+    document.getElementById('allBrokersPanel').style.display = tab === 'broker' ? 'none' : 'block';
     document.getElementById('tabBrokerBtn').className = 'tab-btn ' + (tab === 'broker' ? 'active' : '');
     document.getElementById('tabPriceBtn').className = 'tab-btn ' + (tab === 'price' ? 'active' : '');
     document.getElementById('tabDaytradeBtn').className = 'tab-btn ' + (tab === 'daytrade' ? 'active' : '');
@@ -647,6 +690,80 @@
     }, { responsive: true, displayModeBar: false });
 
     renderBrokerTableRows(d);
+    loadBrokerHistory(brokerName);
+  }
+
+  async function loadBrokerHistory(brokerName) {
+    document.getElementById('brokerHistoryTitle').innerText = `${brokerName} 歷史`;
+    document.getElementById('brokerHistoryDetail').style.display = 'none';
+    activeHistoryDate = '';
+    document.getElementById('brokerHistoryBody').innerHTML = skeletonRows(6);
+
+    const end = currentDate;
+    const start = new Date(currentDate);
+    start.setDate(start.getDate() - 400);
+    const startStr = start.toISOString().slice(0, 10);
+
+    const data = await fetchJson(API_BASE + `range_detail.php?stock=${encodeURIComponent(currentStock)}&broker=${encodeURIComponent(brokerName)}&start=${startStr}&end=${end}`);
+    brokerHistoryData = (data.rows || []).filter(r => r.trade_date !== currentDate).reverse();
+    renderBrokerHistory();
+  }
+
+  function renderBrokerHistory() {
+    const items = [...brokerHistoryData].sort((a, b) => {
+      let vA = a[brokerHistorySortCol], vB = b[brokerHistorySortCol];
+      if (brokerHistorySortCol === 'date') { vA = a.trade_date; vB = b.trade_date; }
+      if (typeof vA === 'string') return brokerHistorySortDesc ? vB.localeCompare(vA) : vA.localeCompare(vB);
+      return brokerHistorySortDesc ? (vB - vA) : (vA - vB);
+    });
+
+    let html = '';
+    items.forEach(it => {
+      const cls = it.net_lots > 0 ? 'net-up' : (it.net_lots < 0 ? 'net-down' : '');
+      const activeAttr = it.trade_date === activeHistoryDate ? ' style="background:var(--table-head);"' : '';
+      html += `<tr${activeAttr} class="row-click" onclick="showBrokerHistoryDetail('${it.trade_date}')">
+        <td class="col-name num">${it.trade_date}</td>
+        <td class="num col-muted">${it.buy_avg.toFixed(2)}</td>
+        <td class="num col-muted">${it.sell_avg.toFixed(2)}</td>
+        <td class="num">${it.total_buy_lots.toFixed(1)}</td>
+        <td class="num">${it.total_sell_lots.toFixed(1)}</td>
+        <td class="num ${cls}">${it.net_lots > 0 ? '+' : ''}${it.net_lots.toFixed(1)}</td>
+      </tr>`;
+    });
+    document.getElementById('brokerHistoryBody').innerHTML = html || '<tr><td colspan="6" class="loading-note">這個分點沒有其他日期的交易紀錄</td></tr>';
+    staggerRows(document.getElementById('brokerHistoryBody'));
+    updateSortHeaders(document.getElementById('brokerHistoryTable'), brokerHistorySortCol, brokerHistorySortDesc);
+  }
+
+  function sortBrokerHistory(col) {
+    if (brokerHistorySortCol === col) brokerHistorySortDesc = !brokerHistorySortDesc;
+    else { brokerHistorySortCol = col; brokerHistorySortDesc = true; }
+    renderBrokerHistory();
+  }
+
+  async function showBrokerHistoryDetail(tradeDate) {
+    activeHistoryDate = tradeDate;
+    renderBrokerHistory();
+    const panel = document.getElementById('brokerHistoryDetail');
+    panel.style.display = 'block';
+    document.getElementById('brokerHistoryDetailTitle').innerText = `${currentBroker} — ${tradeDate} 各價位明細`;
+    document.getElementById('brokerHistoryDetailBody').innerHTML = skeletonRows(4, 3);
+
+    const data = await fetchJson(API_BASE + `broker_date_detail.php?stock=${encodeURIComponent(currentStock)}&broker=${encodeURIComponent(currentBroker)}&date=${encodeURIComponent(tradeDate)}`);
+    const rows = data.rows || [];
+    let html = '';
+    rows.forEach(r => {
+      const cls = r.net_lots > 0 ? 'net-up' : (r.net_lots < 0 ? 'net-down' : '');
+      html += `<tr>
+        <td class="num">${r.price.toFixed(2)}</td>
+        <td class="num" style="color: var(--up);">${r.buy_lots.toFixed(1)}</td>
+        <td class="num" style="color: var(--down);">${r.sell_lots.toFixed(1)}</td>
+        <td class="num ${cls}">${r.net_lots > 0 ? '+' : ''}${r.net_lots.toFixed(1)}</td>
+      </tr>`;
+    });
+    document.getElementById('brokerHistoryDetailBody').innerHTML = html || '<tr><td colspan="4" class="loading-note">這天已超過 30 天明細保留期限,查不到價位明細</td></tr>';
+    staggerRows(document.getElementById('brokerHistoryDetailBody'));
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function renderBrokerTableRows(d) {
