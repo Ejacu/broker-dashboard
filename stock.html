@@ -75,11 +75,17 @@
     </div>
     <div class="summary-cell">
       <div class="summary-label">有交易分點</div>
-      <div class="num summary-value" id="sumBrokerCount">--</div>
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 8px;">
+        <span class="num summary-value" id="sumBrokerCount">--</span>
+        <span class="num" id="sumBrokerSplit" style="font-size: 13px; color: var(--ink-2);"></span>
+      </div>
     </div>
     <div class="summary-cell">
-      <div class="summary-label">前 15 大淨買超合計</div>
-      <div class="num summary-value" id="sumTop15">--</div>
+      <div class="summary-label">前 15 大淨買超 / 淨賣超合計</div>
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 8px;">
+        <span class="num summary-value" id="sumTop15Buy">--</span>
+        <span class="num summary-value" id="sumTop15Sell">--</span>
+      </div>
     </div>
   </section>
 
@@ -142,12 +148,12 @@
           <table class="data-table" id="brokerHistoryTable">
             <thead>
               <tr>
-                <th data-col="date">日期</th>
+                <th class="sort-th active" data-col="date" onclick="sortBrokerHistory('date')">日期</th>
                 <th class="sort-th" data-col="buy_avg" onclick="sortBrokerHistory('buy_avg')">買均價</th>
                 <th class="sort-th" data-col="sell_avg" onclick="sortBrokerHistory('sell_avg')">賣均價</th>
                 <th class="sort-th" data-col="total_buy_lots" onclick="sortBrokerHistory('total_buy_lots')">買進(張)</th>
                 <th class="sort-th" data-col="total_sell_lots" onclick="sortBrokerHistory('total_sell_lots')">賣出(張)</th>
-                <th class="sort-th active" data-col="net_lots" onclick="sortBrokerHistory('net_lots')">淨買賣(張)</th>
+                <th class="sort-th" data-col="net_lots" onclick="sortBrokerHistory('net_lots')">淨買賣(張)</th>
               </tr>
             </thead>
             <tbody id="brokerHistoryBody"><tr><td colspan="6" class="loading-note">請選擇分點</td></tr></tbody>
@@ -282,7 +288,7 @@
   let daytradeSortDesc = true;
   let priceRangeDays = 90;
   let brokerHistoryData = [];
-  let brokerHistorySortCol = 'net_lots';
+  let brokerHistorySortCol = 'date';
   let brokerHistorySortDesc = true;
   let activeHistoryDate = '';
 
@@ -469,7 +475,9 @@
       document.getElementById('sumAvgPrice').innerText = '--';
       document.getElementById('sumVolume').innerText = '0';
       document.getElementById('sumBrokerCount').innerText = '0';
-      document.getElementById('sumTop15').innerText = '0';
+      document.getElementById('sumBrokerSplit').innerText = '';
+      document.getElementById('sumTop15Buy').innerText = '0';
+      document.getElementById('sumTop15Sell').innerText = '0';
       return;
     }
 
@@ -485,11 +493,24 @@
     document.getElementById('sumVolume').innerText = Math.round(volume).toLocaleString();
     document.getElementById('sumBrokerCount').innerText = summaryList.length;
 
-    const top15 = [...summaryList].sort((a, b) => b.net_lots - a.net_lots).slice(0, 15);
-    const top15Sum = top15.reduce((s, r) => s + r.net_lots, 0);
-    const top15El = document.getElementById('sumTop15');
-    top15El.innerText = (top15Sum > 0 ? '+' : '') + top15Sum.toFixed(1);
-    top15El.className = 'num summary-value ' + (top15Sum > 0 ? 'net-up' : (top15Sum < 0 ? 'net-down' : ''));
+    const buyCount = summaryList.filter(x => x.action === '買超').length;
+    const sellCount = summaryList.filter(x => x.action === '賣超').length;
+    document.getElementById('sumBrokerSplit').innerHTML =
+      `(<span class="net-up">買超 ${buyCount}</span> · <span class="net-down">賣超 ${sellCount}</span>)`;
+
+    const sorted = [...summaryList].sort((a, b) => b.net_lots - a.net_lots);
+    const top15Buy = sorted.slice(0, 15);
+    const top15Sell = sorted.slice(-15).reverse();
+    const top15BuySum = top15Buy.reduce((s, r) => s + r.net_lots, 0);
+    const top15SellSum = top15Sell.reduce((s, r) => s + r.net_lots, 0);
+
+    const top15BuyEl = document.getElementById('sumTop15Buy');
+    top15BuyEl.innerText = '買超 ' + (top15BuySum > 0 ? '+' : '') + top15BuySum.toFixed(1);
+    top15BuyEl.className = 'num summary-value ' + (top15BuySum > 0 ? 'net-up' : (top15BuySum < 0 ? 'net-down' : ''));
+
+    const top15SellEl = document.getElementById('sumTop15Sell');
+    top15SellEl.innerText = '賣超 ' + (top15SellSum > 0 ? '+' : '') + top15SellSum.toFixed(1);
+    top15SellEl.className = 'num summary-value ' + (top15SellSum > 0 ? 'net-up' : (top15SellSum < 0 ? 'net-down' : ''));
   }
 
   async function loadPriceTrend() {
