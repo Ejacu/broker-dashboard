@@ -701,12 +701,12 @@
     Plotly.newPlot('broker_chart', [traceBuy, traceSell], {
       title: { text: '各價位量能分佈', font: { family: 'Noto Sans TC, sans-serif', size: window.innerWidth < 600 ? 12 : 13, color: '#14171C' } },
       barmode: 'group',
-      xaxis: { title: '成交價格 (元)', type: 'category', tickfont: { family: 'IBM Plex Mono, monospace' } },
+      xaxis: { title: '成交價格 (元)', type: 'category', automargin: true, tickfont: { family: 'IBM Plex Mono, monospace' } },
       yaxis: { title: '張數 (張)', gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
       font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
       plot_bgcolor: '#FFFFFF',
       paper_bgcolor: '#FFFFFF',
-      margin: { t: 35, b: 40, l: 50, r: 10 },
+      margin: { t: 35, b: 70, l: 50, r: 10 },
       legend: { orientation: 'h', y: 1.18 }
     }, { responsive: true, displayModeBar: false });
 
