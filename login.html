@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>登入 — SM籌碼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .auth-card { width: 100%; max-width: 380px; padding: 16px; }
+  .auth-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 28px 24px; }
+  .auth-title { margin: 0 0 4px; font-size: 20px; font-weight: 700; }
+  .auth-brand { text-align: center; margin-bottom: 24px; }
+  .auth-sub { margin: 0 0 20px; font-size: 13px; color: var(--ink-3); }
+  .auth-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .auth-field label { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+  .auth-field input {
+    height: 42px; box-sizing: border-box; border: 1px solid var(--input-border);
+    border-radius: 3px; padding: 0 12px; font: inherit; font-size: 14px; color: var(--ink); background: var(--surface);
+  }
+  .auth-btn {
+    width: 100%; height: 44px; border: 0; border-radius: 3px; background: var(--accent);
+    color: #FFFFFF; font: inherit; font-weight: 500; font-size: 14px; cursor: pointer; margin-top: 6px;
+  }
+  .auth-btn:hover { background: #0F2440; }
+  .auth-error { font-size: 13px; color: var(--up); margin-top: 10px; display: none; }
+  .auth-foot { text-align: center; font-size: 13px; color: var(--ink-2); margin-top: 18px; }
+</style>
+</head>
+<body>
+
+<div class="auth-card">
+  <div class="auth-brand">
+    <span style="font-weight: 700; font-size: 19px; letter-spacing: 0.04em; color: var(--ink);">SM籌碼</span>
+  </div>
+  <div class="auth-panel">
+    <h1 class="auth-title">登入</h1>
+    <p class="auth-sub">登入後才能查詢分點籌碼資料</p>
+    <form onsubmit="return false;">
+      <div class="auth-field">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="username" onkeydown="if(event.key==='Enter') doLogin()" />
+      </div>
+      <div class="auth-field">
+        <label for="password">密碼</label>
+        <input id="password" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()" />
+      </div>
+      <button type="button" class="auth-btn" onclick="doLogin()">登入</button>
+      <div class="auth-error" id="errorMsg"></div>
+    </form>
+    <div class="auth-foot">還沒有帳號?<a href="#" id="registerLink">註冊</a></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://sgq.vwa.mybluehost.me/broker/';
+
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get('redirect') || 'stock.html';
+  document.getElementById('registerLink').href = 'register.html?redirect=' + encodeURIComponent(redirect);
+
+  // 已經登入過就直接跳走,不用再看一次登入頁
+  if (localStorage.getItem('sm_auth_token')) {
+    window.location.href = redirect;
+  }
+
+  async function doLogin() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('errorMsg');
+    errorEl.style.display = 'none';
+
+    if (!email || !password) {
+      errorEl.innerText = '請輸入 Email 跟密碼';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + 'login.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errorEl.innerText = data.error === 'invalid_credentials' ? 'Email 或密碼不正確' : '登入失敗,請稍後再試';
+        errorEl.style.display = 'block';
+        return;
+      }
+      localStorage.setItem('sm_auth_token', data.token);
+      localStorage.setItem('sm_auth_expires', data.expires_at);
+      window.location.href = redirect;
+    } catch (e) {
+      errorEl.innerText = '連線失敗,請稍後再試';
+      errorEl.style.display = 'block';
+    }
+  }
+</script>
+
+</body>
+</html>

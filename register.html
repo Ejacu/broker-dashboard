@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>註冊 — SM籌碼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .auth-card { width: 100%; max-width: 380px; padding: 16px; }
+  .auth-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 28px 24px; }
+  .auth-title { margin: 0 0 4px; font-size: 20px; font-weight: 700; }
+  .auth-brand { text-align: center; margin-bottom: 24px; }
+  .auth-sub { margin: 0 0 20px; font-size: 13px; color: var(--ink-3); }
+  .auth-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .auth-field label { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+  .auth-field input {
+    height: 42px; box-sizing: border-box; border: 1px solid var(--input-border);
+    border-radius: 3px; padding: 0 12px; font: inherit; font-size: 14px; color: var(--ink); background: var(--surface);
+  }
+  .auth-hint { font-size: 12px; color: var(--ink-3); margin-top: -8px; margin-bottom: 14px; }
+  .auth-btn {
+    width: 100%; height: 44px; border: 0; border-radius: 3px; background: var(--accent);
+    color: #FFFFFF; font: inherit; font-weight: 500; font-size: 14px; cursor: pointer; margin-top: 6px;
+  }
+  .auth-btn:hover { background: #0F2440; }
+  .auth-error { font-size: 13px; color: var(--up); margin-top: 10px; display: none; }
+  .auth-foot { text-align: center; font-size: 13px; color: var(--ink-2); margin-top: 18px; }
+</style>
+</head>
+<body>
+
+<div class="auth-card">
+  <div class="auth-brand">
+    <span style="font-weight: 700; font-size: 19px; letter-spacing: 0.04em; color: var(--ink);">SM籌碼</span>
+  </div>
+  <div class="auth-panel">
+    <h1 class="auth-title">註冊</h1>
+    <p class="auth-sub" id="authSub">建立帳號開始查詢分點籌碼資料</p>
+    <form onsubmit="return false;">
+      <div class="auth-field">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="username" onkeydown="if(event.key==='Enter') doRegister()" />
+      </div>
+      <div class="auth-field">
+        <label for="password">密碼</label>
+        <input id="password" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter') doRegister()" />
+      </div>
+      <div class="auth-hint">至少 6 個字元</div>
+      <button type="button" class="auth-btn" onclick="doRegister()">註冊</button>
+      <div class="auth-error" id="errorMsg"></div>
+    </form>
+    <div class="auth-foot">已經有帳號?<a href="#" id="loginLink">登入</a></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://sgq.vwa.mybluehost.me/broker/';
+
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get('redirect') || 'stock.html';
+  document.getElementById('loginLink').href = 'login.html?redirect=' + encodeURIComponent(redirect);
+
+  if (params.get('locked') === '1') {
+    document.getElementById('authSub').innerText = '台積電(2330)免費開放試看,其他股票要免費註冊會員才能查詢完整籌碼資料';
+  }
+
+  if (localStorage.getItem('sm_auth_token')) {
+    window.location.href = redirect;
+  }
+
+  async function doRegister() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('errorMsg');
+    errorEl.style.display = 'none';
+
+    if (!email || !password) {
+      errorEl.innerText = '請輸入 Email 跟密碼';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (password.length < 6) {
+      errorEl.innerText = '密碼至少要 6 個字元';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + 'register.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msgMap = { email_taken: '這個 Email 已經註冊過了', invalid_email: 'Email 格式不正確', password_too_short: '密碼至少要 6 個字元' };
+        errorEl.innerText = msgMap[data.error] || '註冊失敗,請稍後再試';
+        errorEl.style.display = 'block';
+        return;
+      }
+      localStorage.setItem('sm_auth_token', data.token);
+      localStorage.setItem('sm_auth_expires', data.expires_at);
+      window.location.href = redirect;
+    } catch (e) {
+      errorEl.innerText = '連線失敗,請稍後再試';
+      errorEl.style.display = 'block';
+    }
+  }
+</script>
+
+</body>
+</html>

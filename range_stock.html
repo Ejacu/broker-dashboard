@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>單一股票區間查詢 — 分點籌碼</title>
+<title>單一股票區間查詢 — SM籌碼</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -13,7 +13,7 @@
 <header class="topnav">
   <div class="topnav-inner">
     <a href="index.html" class="topnav-brand">
-      <span class="topnav-brand-name">分點籌碼</span>
+      <span class="topnav-brand-name">SM籌碼</span>
       <span class="topnav-brand-tag">Taiwan Broker Flow</span>
     </a>
     <nav class="topnav-tabs">
@@ -21,6 +21,7 @@
       <a href="broker.html" class="topnav-tab">依券商</a>
       <a href="range_stock.html" class="topnav-tab active">區間查詢</a>
     </nav>
+    <a href="#" class="topnav-tab" onclick="logout(); return false;" style="margin-left: auto;">登出</a>
   </div>
 </header>
 
@@ -88,6 +89,7 @@
 
   <footer class="page-footer">
     <span>資料來源:FinMind · 盤後彙總資料,非即時</span>
+    <span id="lastUpdateNote"></span>
     <span>單位:張</span>
   </footer>
 </main>
@@ -103,8 +105,29 @@
   let currentEnd = '';
   let activeBroker = '';
 
+  function logout() {
+    const token = localStorage.getItem('sm_auth_token');
+    if (token) {
+      fetch(API_BASE + 'logout.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+      }).catch(() => {});
+    }
+    localStorage.removeItem('sm_auth_token');
+    window.location.href = 'login.html';
+  }
+
+  function goToLogin() {
+    localStorage.removeItem('sm_auth_token');
+    window.location.href = 'login.html?redirect=' + encodeURIComponent(location.pathname + location.search);
+  }
+
+  const authToken = localStorage.getItem('sm_auth_token');
+  if (!authToken) { goToLogin(); }
+
   async function fetchJson(url) {
-    const res = await fetch(url);
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(url + sep + 'auth_token=' + encodeURIComponent(authToken));
+    if (res.status === 401) { goToLogin(); throw new Error('unauthorized'); }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -274,6 +297,20 @@
     staggerRows(document.getElementById('detailBody'));
     document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
+
+  async function loadLastUpdateNote() {
+    try {
+      const res = await fetch('https://api.github.com/repos/Ejacu/broker-dashboard/actions/workflows/daily_broker_update.yml/runs?status=success&per_page=1');
+      const data = await res.json();
+      const run = data.workflow_runs && data.workflow_runs[0];
+      if (!run) return;
+      const taipei = new Date(run.created_at).toLocaleString('zh-TW', {
+        timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+      });
+      document.getElementById('lastUpdateNote').innerText = `資料最後更新:${taipei}(台灣時間)`;
+    } catch (e) { /* 這個資訊非必要,拿不到就算了,不影響主功能 */ }
+  }
+  loadLastUpdateNote();
 
   init().catch(err => {
     document.getElementById('resultBody').innerHTML = `<tr><td colspan="6" class="loading-note">載入失敗:${err.message}</td></tr>`;
