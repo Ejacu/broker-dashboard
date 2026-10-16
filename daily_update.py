@@ -44,15 +44,17 @@ def request_with_retry(method: str, url: str, max_retry: int = HTTP_MAX_RETRY, *
     raise last_exc
 
 
-def get_current_stock_ids(stocks_url: str) -> list:
+def get_current_stock_ids(stocks_url: str, upload_token: str) -> list:
     """跟資料庫既有的股票清單同步,避免每天只更新固定幾檔,新加的股票也要繼續追蹤"""
-    resp = request_with_retry("GET", stocks_url, timeout=30)
+    resp = request_with_retry("GET", stocks_url, params={"service_token": upload_token}, timeout=30)
     stock_ids = resp.json()
     return stock_ids if stock_ids else FALLBACK_STOCK_IDS
 
 
-def get_existing_dates(dates_url: str, stock_id: str) -> set:
-    resp = request_with_retry("GET", dates_url, params={"stock": stock_id}, timeout=30)
+def get_existing_dates(dates_url: str, stock_id: str, upload_token: str) -> set:
+    # service_token 讓這支自動化腳本跳過真人登入驗證(網站本身加了會員系統,
+    # 除了免費試看股 2330,其他股票的 API 都要帶登入憑證或這個服務端 token)
+    resp = request_with_retry("GET", dates_url, params={"stock": stock_id, "service_token": upload_token}, timeout=30)
     return set(resp.json())
 
 
@@ -205,7 +207,7 @@ def main():
     api = DataLoader()
     api.login_by_token(api_token=token)
 
-    stock_ids = get_current_stock_ids(stocks_url)
+    stock_ids = get_current_stock_ids(stocks_url, upload_token)
     print(f"依資料庫既有清單,共 {len(stock_ids)} 檔股票")
 
     # 每檔股票各自送一次請求,避免單一請求塞進上萬筆明細導致 PHP 執行逾時
@@ -216,7 +218,7 @@ def main():
             price_start, price_end = override_date, override_date
         else:
             # 正常排程:檢查最近 LOOKBACK_DAYS 天裡,資料庫還缺哪幾天,自動補上
-            existing = get_existing_dates(dates_url, stock_id)
+            existing = get_existing_dates(dates_url, stock_id, upload_token)
             all_recent = recent_dates(LOOKBACK_DAYS)
             target_dates = [d for d in all_recent if d not in existing]
             price_start, price_end = (min(all_recent), max(all_recent)) if all_recent else (None, None)
