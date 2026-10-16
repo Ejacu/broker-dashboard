@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
   .auth-card { width: 100%; max-width: 380px; padding: 16px; }
@@ -27,6 +28,9 @@
   .auth-btn:hover { background: #0F2440; }
   .auth-error { font-size: 13px; color: var(--up); margin-top: 10px; display: none; }
   .auth-foot { text-align: center; font-size: 13px; color: var(--ink-2); margin-top: 18px; }
+  .auth-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0; font-size: 12px; color: var(--ink-3); }
+  .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-soft); }
+  #googleBtn { display: flex; justify-content: center; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -38,6 +42,10 @@
   <div class="auth-panel">
     <h1 class="auth-title">登入</h1>
     <p class="auth-sub">登入後才能查詢分點籌碼資料</p>
+
+    <div id="googleBtn"></div>
+    <div class="auth-divider">或用 Email 登入</div>
+
     <form onsubmit="return false;">
       <div class="auth-field">
         <label for="email">Email</label>
@@ -64,6 +72,38 @@
   // 已經登入過就直接跳走,不用再看一次登入頁
   if (localStorage.getItem('sm_auth_token')) {
     window.location.href = redirect;
+  }
+
+  const GOOGLE_CLIENT_ID = 'PASTE_YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com';
+
+  window.onload = function () {
+    if (typeof google === 'undefined') return;
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+    google.accounts.id.renderButton(document.getElementById('googleBtn'), { theme: 'outline', size: 'large', width: 332, text: 'continue_with' });
+  };
+
+  async function handleGoogleCredential(response) {
+    const errorEl = document.getElementById('errorMsg');
+    errorEl.style.display = 'none';
+    try {
+      const res = await fetch(API_BASE + 'google_login.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errorEl.innerText = 'Google 登入失敗,請稍後再試';
+        errorEl.style.display = 'block';
+        return;
+      }
+      localStorage.setItem('sm_auth_token', data.token);
+      localStorage.setItem('sm_auth_expires', data.expires_at);
+      window.location.href = redirect;
+    } catch (e) {
+      errorEl.innerText = '連線失敗,請稍後再試';
+      errorEl.style.display = 'block';
+    }
   }
 
   async function doLogin() {

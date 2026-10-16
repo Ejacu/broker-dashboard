@@ -76,7 +76,10 @@ def main():
 
     for si, stock_id in enumerate(stock_dirs, start=1):
         try:
-            resp = requests.get(f"{DATES_URL}?stock={stock_id}", headers=UPLOAD_HEADERS, timeout=30)
+            resp = requests.get(
+                f"{DATES_URL}?stock={stock_id}&service_token={UPLOAD_TOKEN}",
+                headers=UPLOAD_HEADERS, timeout=30,
+            )
             resp.raise_for_status()
             have_dates = set(resp.json())
         except Exception as exc:
