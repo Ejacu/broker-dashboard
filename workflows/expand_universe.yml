@@ -1,0 +1,36 @@
+name: Expand Universe
+
+on:
+  schedule:
+    - cron: "0 14 */3 * *"  # UTC 14:00 = 台灣時間 22:00,每 3 天跑一次
+  workflow_dispatch:
+    inputs:
+      priority_stocks:
+        description: "要優先補的股票代號,逗號分隔(例如 1234,5678)。留空就照正常順序補下一批"
+        required: false
+        default: ""
+
+concurrency:
+  group: expand-universe
+  cancel-in-progress: false
+
+jobs:
+  expand:
+    runs-on: ubuntu-24.04  # 固定版本,避免 ubuntu-latest 遷移到新版映像(2026-10-19 起)時環境突然跟著變動
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install FinMind requests
+
+      - name: 新增一批股票,逐步涵蓋全市場
+        run: python expand_universe.py
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
+          UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
+          PRIORITY_STOCK_IDS: ${{ github.event.inputs.priority_stocks }}
