@@ -13,8 +13,10 @@ from FinMind.data import DataLoader
 FALLBACK_STOCK_IDS = ["2330", "2317", "2454"]
 
 # 每次執行都檢查最近幾天有沒有缺口並補上,而不是只看「今天」——
-# 這樣排程偶爾失敗個幾天,下次成功執行時會自動追上,不需要人工介入
-LOOKBACK_DAYS = 10
+# 這樣排程偶爾失敗個幾天,下次成功執行時會自動追上,不需要人工介入。
+# 可用環境變數臨時拉大(例如訂閱中斷後有大量缺口要追,又會撞 FinMind 速率上限,
+# 得靠連續好幾天的執行慢慢追,視窗太小的話舊的缺口會在追到之前就被滑出視窗、永久補不到)
+LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS", "10"))
 
 # Bluehost 的防護機制會擋掉 requests 預設的 User-Agent(python-requests/x.x),
 # 偽裝成一般瀏覽器才不會被 WAF 判定成機器人擋掉(406 Not Acceptable)
@@ -25,6 +27,11 @@ UPLOAD_HEADERS = {
 
 HTTP_MAX_RETRY = 8
 HTTP_RETRY_BACKOFF = 20  # 秒,每次重試遞增(20, 40, 60...),拉長是因為 Bluehost 擋 GitHub IP 有時會持續好幾分鐘
+
+
+class RateLimitReached(Exception):
+    """FinMind API 速率上限打到了,不是程式錯誤,是正常會發生的情況
+    (尤其訂閱中斷過一段時間、要一次追回大量缺口的時候)"""
 
 
 def request_with_retry(method: str, url: str, max_retry: int = HTTP_MAX_RETRY, **kwargs) -> requests.Response:
@@ -175,7 +182,13 @@ def update_price_range(upload_url: str, upload_token: str, api: DataLoader, stoc
 
 
 def update_one(upload_url: str, upload_token: str, api: DataLoader, stock_id: str, trade_date: str) -> None:
-    df = api.taiwan_stock_trading_daily_report(stock_id=stock_id, date=trade_date)
+    try:
+        df = api.taiwan_stock_trading_daily_report(stock_id=stock_id, date=trade_date)
+    except Exception as exc:
+        if "upper limit" in str(exc).lower():
+            raise RateLimitReached(str(exc)) from exc
+        print(f"{stock_id} {trade_date} 查詢失敗,略過(下次排程的回補視窗會再補一次): {exc}")
+        return
     if df.empty:
         print(f"{stock_id} {trade_date} 無資料(可能非交易日),略過")
         return
@@ -223,13 +236,17 @@ def main():
             target_dates = [d for d in all_recent if d not in existing]
             price_start, price_end = (min(all_recent), max(all_recent)) if all_recent else (None, None)
 
-        for trade_date in target_dates:
-            update_one(upload_url, upload_token, api, stock_id, trade_date)
+        try:
+            for trade_date in target_dates:
+                update_one(upload_url, upload_token, api, stock_id, trade_date)
 
-        # 收盤價一次查一段範圍就好,不用像分點資料那樣逐日查缺口,
-        # 每天都重查一次最近這段範圍,自動蓋掉舊值,成本只有多一次 API 呼叫
-        if price_start and price_end:
-            update_price_range(upload_url, upload_token, api, stock_id, price_start, price_end)
+            # 收盤價一次查一段範圍就好,不用像分點資料那樣逐日查缺口,
+            # 每天都重查一次最近這段範圍,自動蓋掉舊值,成本只有多一次 API 呼叫
+            if price_start and price_end:
+                update_price_range(upload_url, upload_token, api, stock_id, price_start, price_end)
+        except RateLimitReached as exc:
+            print(f"FinMind API 速率上限,本次先停在 {stock_id},剩下的股票留給下次排程繼續補: {exc}")
+            break
 
 
 if __name__ == "__main__":
