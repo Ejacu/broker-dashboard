@@ -24,3 +24,5 @@ jobs:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
           UPLOAD_URL: ${{ secrets.UPLOAD_URL }}
           UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
+          # 暫時拉大到 20 天(2026-10 訂閱中斷造成的缺口還在追,追完後可以改回 10 或刪掉這行)
+          LOOKBACK_DAYS: "20"
