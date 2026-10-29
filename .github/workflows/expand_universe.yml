@@ -2,7 +2,8 @@ name: Expand Universe
 
 on:
   schedule:
-    - cron: "0 14 */3 * *"  # UTC 14:00 = 台灣時間 22:00,每 3 天跑一次
+    - cron: "30 15 * * *"  # UTC 15:30 = 台灣時間 23:30,每天跑一次(原本 3 天一次,開放給使用者用之後要加速覆蓋全市場);
+                            # 刻意排在 Daily Broker Update(21:30 開始,最長 60 分鐘)收尾之後,避免兩邊同時打 FinMind API 疊加超過速率上限
   workflow_dispatch:
     inputs:
       priority_stocks:
@@ -17,7 +18,7 @@ concurrency:
 jobs:
   expand:
     runs-on: ubuntu-24.04  # 固定版本,避免 ubuntu-latest 遷移到新版映像(2026-10-19 起)時環境突然跟著變動
-    timeout-minutes: 300
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
 
