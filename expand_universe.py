@@ -15,7 +15,7 @@ from FinMind.data import DataLoader
 
 from daily_update import summarize, summarize_price_detail, request_with_retry, update_price_range
 
-BATCH_SIZE = 50
+BATCH_SIZE = 70  # 原本 50,配合跳過週末省下的額度與每天執行(原本 3 天一次)拉高覆蓋速度
 HISTORY_DAYS = 370   # 新股票要往前補多少天的彙總資料(略多於一年,涵蓋所有交易日)
 DETAIL_DAYS = 30     # 新股票要往前補多少天的明細資料
 SLEEP_SECONDS = 0.7  # 每次 FinMind 請求間隔,對齊 broker_pro.py 的節流設定
@@ -48,6 +48,24 @@ def get_full_market_stock_ids(api: DataLoader) -> list:
 def get_tracked_stock_ids(stocks_url: str) -> set:
     resp = request_with_retry("GET", stocks_url, timeout=30)
     return set(resp.json())
+
+
+def get_popularity_rank(api: DataLoader) -> dict:
+    """抓最近一個有資料的交易日,全市場成交量——開放給一般使用者用之後,
+    大家最先查的通常是量大、常聽到的股票,熱門股應該優先補,不要跟冷門股用同一個順序排隊。
+    stock_id 傳空字串是 FinMind 的慣例用法,代表不篩特定股票,一次拿全市場當天的資料。"""
+    for back in range(0, 10):
+        d_str = (date.today() - timedelta(days=back)).strftime("%Y-%m-%d")
+        try:
+            df = api.taiwan_stock_daily(stock_id="", start_date=d_str, end_date=d_str)
+        except Exception as exc:
+            print(f"熱門度排名查詢失敗({d_str}),換前一天試試: {exc}")
+            continue
+        if df is not None and not df.empty:
+            print(f"熱門度排名以 {d_str} 全市場成交量為準,共 {len(df)} 檔有資料")
+            return dict(zip(df["stock_id"], df["Trading_Volume"]))
+    print("熱門度排名抓不到,改用預設順序(照股票代號排序)補")
+    return {}
 
 
 def fetch_one(api: DataLoader, stock_id: str, trade_date: str):
@@ -83,6 +101,9 @@ def main():
 
     print(f"全市場 {len(full_market)} 檔,已涵蓋 {len(tracked)} 檔,尚未涵蓋 {len(untracked)} 檔")
 
+    popularity = get_popularity_rank(api)
+    untracked.sort(key=lambda s: -popularity.get(s, 0))
+
     if priority_ids:
         invalid = [s for s in priority_ids if s not in full_market]
         if invalid:
@@ -109,6 +130,9 @@ def main():
     for stock_id in batch:
         ok_days, fail_days = 0, 0
         for d_str in daterange(history_start, today):
+            if datetime.strptime(d_str, "%Y-%m-%d").date().weekday() >= 5:
+                continue  # 週末不開盤,查了也一定是空的,跳過省額度
+
             df = fetch_one(api, stock_id, d_str)
             time.sleep(SLEEP_SECONDS)
 

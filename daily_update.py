@@ -9,6 +9,10 @@ from datetime import date, timedelta
 import requests
 from FinMind.data import DataLoader
 
+# 每次呼叫 FinMind API 之間的間隔,跟 expand_universe.py 對齊——
+# 避免追缺口時短時間內打爆 6000 次/小時的速率上限
+FINMIND_SLEEP_SECONDS = 0.7
+
 # 沒有另外設定 STOCK_IDS 環境變數時的預設值(僅供本機測試用)
 FALLBACK_STOCK_IDS = ["2330", "2317", "2454"]
 
@@ -167,6 +171,8 @@ def update_price_range(upload_url: str, upload_token: str, api: DataLoader, stoc
     except Exception as exc:
         print(f"{stock_id} 收盤價查詢失敗 {start_date}~{end_date}: {exc}")
         return
+    finally:
+        time.sleep(FINMIND_SLEEP_SECONDS)
     if df.empty:
         return
     price_records = summarize_price(df)
@@ -189,6 +195,8 @@ def update_one(upload_url: str, upload_token: str, api: DataLoader, stock_id: st
             raise RateLimitReached(str(exc)) from exc
         print(f"{stock_id} {trade_date} 查詢失敗,略過(下次排程的回補視窗會再補一次): {exc}")
         return
+    finally:
+        time.sleep(FINMIND_SLEEP_SECONDS)
     if df.empty:
         print(f"{stock_id} {trade_date} 無資料(可能非交易日),略過")
         return
