@@ -4,6 +4,9 @@
 require_once __DIR__ . '/config.php';
 send_cors_headers();
 header('Content-Type: application/json; charset=utf-8');
+// 不能被 Bluehost nginx 代理快取 24 小時,否則 expand_universe.py 看到的「已追蹤股票」是舊的,會重複補同一批
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('X-Accel-Expires: 0');
 
 $conn = get_db();
 $res = $conn->query("SELECT DISTINCT stock_id FROM broker_summary ORDER BY stock_id");

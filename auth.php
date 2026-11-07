@@ -2,6 +2,12 @@
 // 共用登入驗證邏輯,所有需要登入才能用的 API 都引用這支(取代直接引用 config.php)
 require_once __DIR__ . '/config.php';
 
+// Bluehost 前面的 nginx 代理會把 PHP 回應快取 24 小時(X-Proxy-Cache: HIT / max-age=86400),
+// 導致 API 回傳過期資料(例如每日更新後還是舊的日期、改版後的新欄位晚一天才出現)。
+// 所有 API 都經過這支檔案,在這裡統一關掉快取:no-store 給瀏覽器/CDN,X-Accel-Expires: 0 給 nginx 代理。
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('X-Accel-Expires: 0');
+
 const SESSION_DAYS = 30;   // 滑動展延天數:只要期限內有再使用,就自動往後推
 const FREE_STOCK_ID = '2330'; // 免費試看股票,不用登入也能查這一檔的完整資料
 
