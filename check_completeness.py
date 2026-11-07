@@ -16,15 +16,22 @@ DATES_URL = os.environ.get("DATES_URL", UPLOAD_URL.replace("upload.php", "dates.
 # 檢查最近幾天,預設 30 天,想檢查更久以前可以用環境變數覆蓋
 CHECK_WINDOW_DAYS = int(os.environ.get("CHECK_WINDOW_DAYS", "30"))
 
+# Bluehost 的防護機制會擋掉 requests 預設的 User-Agent(python-requests/x.x),
+# 偽裝成一般瀏覽器才不會被 WAF 判定成機器人擋掉(406 Not Acceptable)——跟 daily_update.py 一致
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+}
+
 
 def get_dates(stock_id: str) -> set:
-    resp = requests.get(DATES_URL, params={"stock": stock_id, "service_token": UPLOAD_TOKEN}, timeout=30)
+    resp = requests.get(DATES_URL, params={"stock": stock_id, "service_token": UPLOAD_TOKEN}, headers=HEADERS, timeout=30)
     resp.raise_for_status()
     return set(resp.json())
 
 
 def main():
-    stocks = requests.get(STOCKS_URL, params={"service_token": UPLOAD_TOKEN}, timeout=30).json()
+    stocks = requests.get(STOCKS_URL, params={"service_token": UPLOAD_TOKEN}, headers=HEADERS, timeout=30).json()
     print(f"資料庫目前共 {len(stocks)} 檔股票")
 
     canonical_all = sorted(get_dates("2330"), reverse=True)

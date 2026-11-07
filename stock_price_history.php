@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
 send_cors_headers();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -15,6 +15,7 @@ if ($days <= 0 || $days > 400) {
 }
 
 $conn = get_db();
+require_auth_or_free_stock($conn, $stock_id);
 $rows = [];
 $stmt = $conn->prepare(
     "SELECT trade_date, open_price, high_price, low_price, close_price, volume_lots, change_val, change_pct

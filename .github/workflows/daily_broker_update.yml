@@ -8,7 +8,7 @@ on:
 jobs:
   update:
     runs-on: ubuntu-24.04  # 固定版本,避免 ubuntu-latest 遷移到新版映像(2026-10-19 起)時環境突然跟著變動
-    timeout-minutes: 60
+    timeout-minutes: 150  # 原本 60,股票數擴增到近千檔後跑不完會被 GitHub 強制 cancelled(不是失敗,但資料更新不完整),拉大留足夠空間
     steps:
       - uses: actions/checkout@v4
 

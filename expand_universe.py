@@ -15,8 +15,11 @@ from FinMind.data import DataLoader
 
 from daily_update import summarize, summarize_price_detail, request_with_retry, update_price_range
 
-BATCH_SIZE = 70  # 原本 50,配合跳過週末省下的額度與每天執行(原本 3 天一次)拉高覆蓋速度
-HISTORY_DAYS = 370   # 新股票要往前補多少天的彙總資料(略多於一年,涵蓋所有交易日)
+BATCH_SIZE = 200  # 單次最多處理幾檔的上限(實際還受下面 CALL_BUDGET 限制)
+HISTORY_DAYS = 370   # 熱門股(成交金額前 TOP_RANK_FULL_HISTORY 名)要往前補多少天的彙總資料(略多於一年)
+HISTORY_DAYS_COLD = 120  # 冷門股只補這麼多天,省額度讓更多股票先有資料
+TOP_RANK_FULL_HISTORY = 400  # 全市場成交金額前幾名算「熱門股」,補完整歷史
+CALL_BUDGET = 14000  # 單次執行預計最多打幾次 FinMind 查詢(約 330 分鐘 timeout 內跑得完),用完就停,剩下明天補
 DETAIL_DAYS = 30     # 新股票要往前補多少天的明細資料
 SLEEP_SECONDS = 0.7  # 每次 FinMind 請求間隔,對齊 broker_pro.py 的節流設定
 MAX_RETRY = 5
@@ -63,7 +66,9 @@ def get_popularity_rank(api: DataLoader) -> dict:
             continue
         if df is not None and not df.empty:
             print(f"熱門度排名以 {d_str} 全市場成交量為準,共 {len(df)} 檔有資料")
-            return dict(zip(df["stock_id"], df["Trading_Volume"]))
+            # 優先用成交金額(避免低價股靠張數衝高排名),欄位不存在才退回成交量
+            col = "Trading_money" if "Trading_money" in df.columns else "Trading_Volume"
+            return dict(zip(df["stock_id"], df[col]))
     print("熱門度排名抓不到,改用預設順序(照股票代號排序)補")
     return {}
 
@@ -120,14 +125,30 @@ def main():
         print("全市場都已經涵蓋了,沒有新股票要補")
         return
 
-    batch = untracked[:BATCH_SIZE]
-    print(f"這次處理 {len(batch)} 檔: {batch}")
-
     today = date.today()
-    history_start = today - timedelta(days=HISTORY_DAYS)
     detail_start = today - timedelta(days=DETAIL_DAYS)
 
+    # 全市場成交金額前 N 名算熱門股,補完整歷史;其餘只補較短歷史
+    hot_ids = set(sorted(popularity, key=lambda s: -popularity[s])[:TOP_RANK_FULL_HISTORY])
+
+    def history_days_for(sid: str) -> int:
+        return HISTORY_DAYS if sid in hot_ids else HISTORY_DAYS_COLD
+
+    def weekdays_in(days: int) -> int:
+        return sum(1 for i in range(days + 1) if (today - timedelta(days=i)).weekday() < 5)
+
+    # 依預算挑這次要處理的股票:累計查詢次數超過 CALL_BUDGET 就停
+    batch, used = [], 0
+    for sid in untracked:
+        cost = weekdays_in(history_days_for(sid))
+        if batch and (used + cost > CALL_BUDGET or len(batch) >= BATCH_SIZE):
+            break
+        batch.append(sid)
+        used += cost
+    print(f"這次處理 {len(batch)} 檔(預估 {used} 次查詢): {batch}")
+
     for stock_id in batch:
+        history_start = today - timedelta(days=history_days_for(stock_id))
         ok_days, fail_days = 0, 0
         for d_str in daterange(history_start, today):
             if datetime.strptime(d_str, "%Y-%m-%d").date().weekday() >= 5:

@@ -442,7 +442,7 @@
     const data = await fetchJson(API_BASE + `data.php?stock=${encodeURIComponent(currentStock)}&date=${encodeURIComponent(dateStr)}`);
 
     renderSummaryPanel(data.summary || [], data.price || null);
-    renderBubbleChart(data.summary);
+    renderBubbleChart(data.bubble || []);
     renderTable(data.summary);
 
     brokerData = data.broker_details || {};
@@ -592,30 +592,32 @@
     }, { responsive: true, displayModeBar: false });
   }
 
-  function renderBubbleChart(summaryList) {
-    const buyItems = summaryList.filter(x => x.action === '買超');
-    const sellItems = summaryList.filter(x => x.action === '賣超');
-    const maxLots = Math.max(...summaryList.map(x => x.abs_lots), 1);
+  // 每個分點拆成「買」「賣」兩顆氣泡:x=各自均價,y=買張數(正)/賣張數(負),
+  // 所以買賣互抵(淨部位 0)的分點也看得到。
+  function renderBubbleChart(bubbleList) {
+    const buyPts = bubbleList.filter(x => x.buy_lots > 0);
+    const sellPts = bubbleList.filter(x => x.sell_lots > 0);
+    const maxLots = Math.max(...bubbleList.map(x => Math.max(x.buy_lots, x.sell_lots)), 1);
     const sizeref = 2.0 * maxLots / (55 ** 2);
 
-    const makeTrace = (items, name, color) => ({
-      x: items.map(x => x.main_avg),
-      y: items.map(x => x.net_lots),
+    const makeTrace = (items, name, color, avgKey, lotsKey, sign) => ({
+      x: items.map(x => x[avgKey]),
+      y: items.map(x => sign * x[lotsKey]),
       mode: 'markers',
       name: name,
-      marker: { size: items.map(x => x.abs_lots), sizemode: 'area', sizeref: sizeref, sizemin: 6, color: color, opacity: 0.8, line: { width: 1, color: '#FFFFFF' } },
-      hovertemplate: "<b>%{customdata[0]}</b><br>買進均價: %{customdata[1]:.2f} 元<br>賣出均價: %{customdata[2]:.2f} 元<br>買賣超: %{y:,.1f} 張<br><extra></extra>",
-      customdata: items.map(x => [x.broker, x.buy_avg, x.sell_avg])
+      marker: { size: items.map(x => x[lotsKey]), sizemode: 'area', sizeref: sizeref, sizemin: 6, color: color, opacity: 0.75, line: { width: 1, color: '#FFFFFF' } },
+      hovertemplate: "<b>%{customdata[0]}</b><br>" + name + " %{customdata[1]:,.1f} 張<br>均價: %{x:.2f} 元<br>淨買賣超: %{customdata[2]:,.1f} 張<br><extra></extra>",
+      customdata: items.map(x => [x.broker, x[lotsKey], x.net_lots])
     });
 
     const isMobile = window.innerWidth < 600;
     Plotly.newPlot('bubble_chart', [
-      makeTrace(buyItems, '買超分點', COLOR_UP),
-      makeTrace(sellItems, '賣超分點', COLOR_DOWN)
+      makeTrace(buyPts, '買進', COLOR_UP, 'buy_avg', 'buy_lots', 1),
+      makeTrace(sellPts, '賣出', COLOR_DOWN, 'sell_avg', 'sell_lots', -1)
     ], {
       title: { text: `${currentStock}　${currentDate}`, font: { family: 'Noto Sans TC, sans-serif', size: isMobile ? 13 : 15, color: '#14171C' } },
       xaxis: { title: '成交均價 (元)', gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
-      yaxis: { title: '買賣超張數 (張)', zeroline: true, zerolinewidth: 1, zerolinecolor: '#C9CED6', gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
+      yaxis: { title: '買進(+)/賣出(−)張數 (張)', zeroline: true, zerolinewidth: 1, zerolinecolor: '#C9CED6', gridcolor: '#EEF0F2', tickfont: { family: 'IBM Plex Mono, monospace' } },
       font: { family: "'Noto Sans TC', sans-serif", color: '#4F5763', size: 12 },
       plot_bgcolor: '#FFFFFF',
       paper_bgcolor: '#FFFFFF',

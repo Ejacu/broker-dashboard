@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
 send_cors_headers();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -11,6 +11,7 @@ if ($stock_id === '') {
 }
 
 $conn = get_db();
+require_auth_or_free_stock($conn, $stock_id);
 $stmt = $conn->prepare("SELECT DISTINCT trade_date FROM broker_summary WHERE stock_id = ? ORDER BY trade_date DESC");
 $stmt->bind_param('s', $stock_id);
 $stmt->execute();

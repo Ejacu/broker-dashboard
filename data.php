@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
 send_cors_headers();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -12,6 +12,7 @@ if ($stock_id === '' || $date === '') {
 }
 
 $conn = get_db();
+require_auth_or_free_stock($conn, $stock_id);
 
 $stmt = $conn->prepare(
     "SELECT broker, buy_avg, sell_avg, main_avg, net_lots, total_buy_lots, total_sell_lots
@@ -142,10 +143,24 @@ if ($price_stmt) {
     }
 }
 
+// 氣泡圖用:每個分點的買張數/賣張數各自帶均價,包含淨部位為 0 的分點
+$bubble = [];
+foreach ($broker_meta as $broker => $meta) {
+    $bubble[] = [
+        'broker' => $broker,
+        'buy_avg' => $meta['buy_avg'],
+        'sell_avg' => $meta['sell_avg'],
+        'buy_lots' => $meta['total_buy_lots'],
+        'sell_lots' => $meta['total_sell_lots'],
+        'net_lots' => $meta['net_lots'],
+    ];
+}
+
 echo json_encode([
     'stock_id' => $stock_id,
     'date' => $date,
     'summary' => $summary,
+    'bubble' => $bubble,
     'broker_details' => $broker_details,
     'daytrade' => $daytrade,
     'price' => $price,

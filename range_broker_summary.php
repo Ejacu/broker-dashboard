@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
 send_cors_headers();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -13,6 +13,7 @@ if ($broker === '' || $start === '' || $end === '') {
 }
 
 $conn = get_db();
+require_auth($conn);
 $stmt = $conn->prepare(
     "SELECT stock_id,
             SUM(total_buy_lots) AS total_buy_lots,

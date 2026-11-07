@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
 send_cors_headers();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -12,6 +12,7 @@ if ($broker === '' || $date === '') {
 }
 
 $conn = get_db();
+require_auth($conn);
 $stmt = $conn->prepare(
     "SELECT stock_id, buy_avg, sell_avg, main_avg, net_lots, total_buy_lots, total_sell_lots
      FROM broker_summary

@@ -1,0 +1,40 @@
+name: Deploy PHP to Bluehost
+
+# 只要 PHP 檔有變動就自動把後端傳到 Bluehost 的 public_html/broker/。
+# 前端(html/css)由 Vercel 接 repo 自動部署,不在這裡處理。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.php"
+      - ".github/workflows/deploy_bluehost.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-bluehost
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # 只挑出要上傳的 PHP,並排除機密/一次性/範本檔(真正的 config.php 只存在 Bluehost 上)
+      - name: 準備要上傳的檔案
+        run: |
+          mkdir _php
+          cp ./*.php _php/
+          rm -f _php/config.php _php/config.example.php _php/run_migration_once.php
+          ls -la _php
+
+      - name: 上傳到 Bluehost
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./_php/
+          server-dir: ./
