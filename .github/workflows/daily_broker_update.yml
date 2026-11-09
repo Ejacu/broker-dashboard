@@ -2,7 +2,7 @@ name: Daily Broker Update
 
 on:
   schedule:
-    - cron: "30 13 * * 1-5"  # UTC 13:30 = 台灣時間 21:30,確保券商分點資料已經更新完成
+    - cron: "0 11 * * 1-5"  # UTC 11:00 = 台灣時間 19:00,FinMind 文件說分點資料 18:00 更新完成,抓 1 小時緩衝
   workflow_dispatch: {}
 
 jobs:
