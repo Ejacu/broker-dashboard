@@ -2,7 +2,7 @@ name: Daily Broker Update
 
 on:
   schedule:
-    - cron: "0 11 * * 1-5"  # UTC 11:00 = 台灣時間 19:00,FinMind 文件說分點資料 18:00 更新完成,抓 1 小時緩衝
+    - cron: "17 11 * * 1-5"  # UTC 11:17 = 台灣時間 19:17,刻意避開整點(GitHub 官方建議:整點是排程最壅塞的時間,容易延遲或被跳過)
   workflow_dispatch: {}
 
 jobs:
