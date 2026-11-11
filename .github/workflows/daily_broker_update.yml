@@ -2,8 +2,18 @@ name: Daily Broker Update
 
 on:
   schedule:
-    - cron: "17 11 * * 1-5"  # UTC 11:17 = 台灣時間 19:17,刻意避開整點(GitHub 官方建議:整點是排程最壅塞的時間,容易延遲或被跳過)
+    # 主排程:UTC 13:47 = 台灣時間 21:47(週一到週五)。FinMind 分點資料通常 21 點後才完整,
+    # 原本 19:17 偏早;刻意避開整點(GitHub 官方建議:整點最壅塞,排程容易延遲或被直接丟棄)。
+    - cron: "47 13 * * 1-5"
+    # 備援:UTC 20:47 = 台灣時間隔天 04:47(週二到週六)。GitHub 偶爾會直接丟棄排程(2026-11-09~11 實際發生過),
+    # 備援跑一次會自動補漏(有缺口才補,沒缺口很快結束)。
+    - cron: "47 20 * * 2-6"
   workflow_dispatch: {}
+
+# 主排程與備援不要同時跑,避免疊加打 FinMind API 超過速率上限
+concurrency:
+  group: daily-broker-update
+  cancel-in-progress: false
 
 jobs:
   update:
